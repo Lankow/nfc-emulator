@@ -12,7 +12,14 @@ class TypeAEmulatorService : HostApduService() {
         val apduHex = commandApdu.joinToString("") { "%02X".format(it.toInt() and 0xFF) }
         Log.d(TAG, "APDU: $apduHex")
 
-        return if (commandApdu.contentEquals(SELECT_APDU)) SELECT_OK else UNKNOWN_COMMAND
+        return if (isSelectCommand(commandApdu)) SELECT_OK else UNKNOWN_COMMAND
+    }
+
+    private fun isSelectCommand(apdu: ByteArray): Boolean {
+        return apdu.size >= 4 &&
+            apdu[0] == 0x00.toByte() &&
+            apdu[1] == 0xA4.toByte() &&
+            apdu[2] == 0x04.toByte()
     }
 
     override fun onDeactivated(reason: Int) {
@@ -21,14 +28,6 @@ class TypeAEmulatorService : HostApduService() {
 
     companion object {
         private const val TAG = "TypeAEmulatorService"
-
-        // ISO 7816-4 SELECT command for our AID (F0010203040506)
-        private val SELECT_APDU = byteArrayOf(
-            0x00.toByte(), 0xA4.toByte(), 0x04.toByte(), 0x00.toByte(),
-            0x07.toByte(),
-            0xF0.toByte(), 0x01.toByte(), 0x02.toByte(), 0x03.toByte(), 0x04.toByte(), 0x05.toByte(), 0x06.toByte(),
-            0x00.toByte()
-        )
 
         private val SELECT_OK = byteArrayOf(0x90.toByte(), 0x00.toByte())
         private val UNKNOWN_COMMAND = byteArrayOf(0x6A.toByte(), 0x82.toByte())

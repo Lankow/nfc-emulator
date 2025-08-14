@@ -12,6 +12,8 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
@@ -20,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
@@ -49,6 +52,7 @@ class MainActivity : ComponentActivity() {
                 var showAid2 by rememberSaveable { mutableStateOf(true) }
                 val scrollState1 = rememberScrollState()
                 val scrollState2 = rememberScrollState()
+                val logEntries by CommunicationLog.entries.collectAsState()
 
                 Column(
                     modifier = Modifier
@@ -92,6 +96,21 @@ class MainActivity : ComponentActivity() {
                         prefs.edit().putStringSet("aids", aids.toSet()).apply()
                     }) {
                         Text("Save AIDs")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Communication Log")
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        items(logEntries) { entry ->
+                            Text(
+                                text = entry.message,
+                                color = if (entry.isRequest) Color.Red else Color.Green
+                            )
+                        }
                     }
                 }
             }

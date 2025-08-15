@@ -3,16 +3,21 @@ package com.lnkv.nfcemulator.cardservice
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
+import com.lnkv.nfcemulator.CommunicationLog
 
 class TypeAEmulatorService : HostApduService() {
 
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
         if (commandApdu == null) return UNKNOWN_COMMAND
 
-        val apduHex = commandApdu.joinToString("") { "%02X".format(it.toInt() and 0xFF) }
+        val apduHex = commandApdu.toHex()
         Log.d(TAG, "APDU: $apduHex")
+        CommunicationLog.add("REQ: $apduHex", true)
 
-        return if (isSelectCommand(commandApdu)) SELECT_OK else UNKNOWN_COMMAND
+        val response = if (isSelectCommand(commandApdu)) SELECT_OK else UNKNOWN_COMMAND
+        CommunicationLog.add("RESP: ${response.toHex()}", false)
+
+        return response
     }
 
     private fun isSelectCommand(apdu: ByteArray): Boolean {
@@ -33,3 +38,6 @@ class TypeAEmulatorService : HostApduService() {
         private val UNKNOWN_COMMAND = byteArrayOf(0x6A.toByte(), 0x82.toByte())
     }
 }
+
+private fun ByteArray.toHex(): String =
+    joinToString("") { "%02X".format(it.toInt() and 0xFF) }

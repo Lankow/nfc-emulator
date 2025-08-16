@@ -28,11 +28,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment.Companion.Center
+import androidx.compose.ui.platform.testTag
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
@@ -113,49 +115,69 @@ fun CommunicationScreen(
     var showOutgoing by rememberSaveable { mutableStateOf(true) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = showIncoming,
-                onCheckedChange = { checked ->
-                    if (!checked && !showOutgoing) return@Checkbox
-                    showIncoming = checked
-                }
-            )
-            Text("Show Incoming Communication")
-        }
-        if (showIncoming) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                items(entries.filter { it.isRequest }) { entry ->
-                    Text(entry.message, color = Color.Red)
-                }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = showIncoming,
+                    onCheckedChange = { checked ->
+                        if (!checked && !showOutgoing) return@Checkbox
+                        showIncoming = checked
+                    }
+                )
+                Text("Show Incoming Communication")
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = showOutgoing,
+                    onCheckedChange = { checked ->
+                        if (!checked && !showIncoming) return@Checkbox
+                        showOutgoing = checked
+                    }
+                )
+                Text("Show Outgoing Communication")
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = showOutgoing,
-                onCheckedChange = { checked ->
-                    if (!checked && !showIncoming) return@Checkbox
-                    showOutgoing = checked
-                }
-            )
-            Text("Show Outgoing Communication")
-        }
-        if (showOutgoing) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                items(entries.filter { !it.isRequest }) { entry ->
-                    Text(entry.message, color = Color.Green)
-                }
+        val incomingEntries = entries.filter { it.isRequest }
+        val outgoingEntries = entries.filter { !it.isRequest }
+
+        when {
+            showIncoming && showOutgoing -> {
+                CommunicationLogList(
+                    label = "Incoming Communication",
+                    entries = incomingEntries,
+                    tag = "IncomingLog",
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                CommunicationLogList(
+                    label = "Outgoing Communication",
+                    entries = outgoingEntries,
+                    tag = "OutgoingLog",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            showIncoming -> {
+                CommunicationLogList(
+                    label = "Incoming Communication",
+                    entries = incomingEntries,
+                    tag = "IncomingLog",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            showOutgoing -> {
+                CommunicationLogList(
+                    label = "Outgoing Communication",
+                    entries = outgoingEntries,
+                    tag = "OutgoingLog",
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -165,6 +187,28 @@ fun CommunicationScreen(
 fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Center) {
         Text(text)
+    }
+}
+
+@Composable
+private fun CommunicationLogList(
+    label: String,
+    entries: List<CommunicationLog.Entry>,
+    tag: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier.fillMaxWidth()) {
+        Text(label)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(tag)
+        ) {
+            items(entries) { entry ->
+                val color = if (entry.isRequest) Color.Red else Color.Green
+                Text(entry.message, color = color)
+            }
+        }
     }
 }
 

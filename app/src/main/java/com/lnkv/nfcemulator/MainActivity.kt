@@ -34,8 +34,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
@@ -160,17 +163,10 @@ fun CommunicationScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .testTag("ServerToggle")
         ) {
-            Checkbox(
+            CircleCheckbox(
                 checked = showServer,
                 onCheckedChange = { showServer = it },
                 enabled = showNfc || !showServer,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary,
-                    uncheckedColor = MaterialTheme.colorScheme.outline,
-                    checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                    disabledCheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    disabledUncheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                ),
                 modifier = Modifier.testTag("ServerCheck")
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -186,17 +182,10 @@ fun CommunicationScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .testTag("NfcToggle")
         ) {
-            Checkbox(
+            CircleCheckbox(
                 checked = showNfc,
                 onCheckedChange = { showNfc = it },
                 enabled = showServer || !showNfc,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary,
-                    uncheckedColor = MaterialTheme.colorScheme.outline,
-                    checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                    disabledCheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    disabledUncheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                ),
                 modifier = Modifier.testTag("NfcCheck")
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -291,6 +280,49 @@ private fun CommunicationLogList(
                     Text(entry.message, color = color)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CircleCheckbox(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    val background = when {
+        !enabled -> scheme.surfaceVariant.copy(alpha = 0.6f)
+        checked -> scheme.primary
+        else -> Color.Transparent
+    }
+    val borderColor = when {
+        !enabled -> scheme.surfaceVariant.copy(alpha = 0.6f)
+        checked -> scheme.primary
+        else -> scheme.outline
+    }
+    Box(
+        modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .background(background)
+            .border(2.dp, borderColor, CircleShape)
+            .toggleable(
+                value = checked,
+                onValueChange = onCheckedChange,
+                enabled = enabled,
+                role = Role.Checkbox
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = scheme.onPrimary,
+                modifier = Modifier.size(12.dp)
+            )
         }
     }
 }

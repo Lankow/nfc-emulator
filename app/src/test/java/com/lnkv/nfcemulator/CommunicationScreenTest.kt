@@ -70,5 +70,19 @@ class CommunicationScreenTest {
 
         assertEquals(logWidth, dividerWidth)
     }
+
+    @Test
+    fun togglesAlignWithLogs() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+
+        val serverToggleX = composeTestRule.onNodeWithTag("ServerToggle").fetchSemanticsNode().positionInRoot.x
+        val serverLogX = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().positionInRoot.x
+
+        val nfcToggleX = composeTestRule.onNodeWithTag("NfcToggle").fetchSemanticsNode().positionInRoot.x
+        val nfcLogX = composeTestRule.onNodeWithTag("NfcLog").fetchSemanticsNode().positionInRoot.x
+
+        assertEquals(serverLogX, serverToggleX)
+        assertEquals(nfcLogX, nfcToggleX)
+    }
 }
 

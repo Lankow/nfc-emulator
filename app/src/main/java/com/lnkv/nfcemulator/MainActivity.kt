@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,7 +89,11 @@ fun MainScreen() {
 
     androidx.compose.material3.Scaffold(
         topBar = {
-            TopAppBar(title = { Text(currentScreen.label, modifier = Modifier.testTag("ScreenHeader")) })
+            TopAppBar(
+                modifier = Modifier.testTag("TopBar"),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary),
+                title = { Text(currentScreen.label, modifier = Modifier.testTag("ScreenHeader")) }
+            )
         },
         bottomBar = {
             NavigationBar {
@@ -122,10 +127,13 @@ fun CommunicationScreen(
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(vertical = 16.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().testTag("ServerToggle")
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .testTag("ServerToggle")
         ) {
             Checkbox(
                 checked = showServer,
@@ -139,7 +147,10 @@ fun CommunicationScreen(
         Spacer(modifier = Modifier.height(4.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().testTag("NfcToggle")
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .testTag("NfcToggle")
         ) {
             Checkbox(
                 checked = showNfc,
@@ -155,6 +166,7 @@ fun CommunicationScreen(
         Divider(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 16.dp)
                 .align(Alignment.CenterHorizontally)
                 .testTag("ToggleDivider")
         )
@@ -169,14 +181,18 @@ fun CommunicationScreen(
                     label = "Server Communication",
                     entries = serverEntries,
                     tag = "ServerLog",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 CommunicationLogList(
                     label = "NFC Communication",
                     entries = nfcEntries,
                     tag = "NfcLog",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
                 )
             }
             showServer -> {
@@ -184,7 +200,9 @@ fun CommunicationScreen(
                     label = "Server Communication",
                     entries = serverEntries,
                     tag = "ServerLog",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
                 )
             }
             showNfc -> {
@@ -192,7 +210,9 @@ fun CommunicationScreen(
                     label = "NFC Communication",
                     entries = nfcEntries,
                     tag = "NfcLog",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
                 )
             }
         }

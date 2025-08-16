@@ -85,19 +85,24 @@ class CommunicationScreenTest {
     }
 
     @Test
-    fun saveButtonIsDisplayed() {
+    fun actionButtonsDisplayed() {
         composeTestRule.setContent { CommunicationScreen(emptyList()) }
         composeTestRule.onNodeWithTag("SaveButton").assertExists()
+        composeTestRule.onNodeWithTag("ClearButton").assertExists()
     }
 
     @Test
-    fun saveButtonMatchesLogWidth() {
+    fun actionButtonsMatchLogWidth() {
         composeTestRule.setContent { CommunicationScreen(emptyList()) }
 
         val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
-        val buttonWidth = composeTestRule.onNodeWithTag("SaveButton").fetchSemanticsNode().size.width
+        val spacing = with(composeTestRule.density) { 8.dp.roundToPx() }
+        val expected = (logWidth - spacing) / 2
+        val saveWidth = composeTestRule.onNodeWithTag("SaveButton").fetchSemanticsNode().size.width
+        val clearWidth = composeTestRule.onNodeWithTag("ClearButton").fetchSemanticsNode().size.width
 
-        assertEquals(logWidth, buttonWidth)
+        assertEquals(expected, saveWidth)
+        assertEquals(expected, clearWidth)
     }
 }
 

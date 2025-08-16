@@ -13,11 +13,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
@@ -103,13 +105,6 @@ fun MainScreen() {
     val logEntries by CommunicationLog.entries.collectAsState()
 
     androidx.compose.material3.Scaffold(
-        topBar = {
-                TopAppBar(
-                modifier = Modifier.testTag("TopBar"),
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary),
-                title = { Text(currentScreen.label.uppercase(), modifier = Modifier.testTag("ScreenHeader")) }
-            )
-        },
         bottomBar = {
             NavigationBar {
                 Screen.entries.forEach { screen ->
@@ -152,6 +147,7 @@ fun CommunicationScreen(
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
+    var command by rememberSaveable { mutableStateOf("") }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -226,18 +222,46 @@ fun CommunicationScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         val context = LocalContext.current
-        // Persist the current communication log to a text file in the app's
-        // internal storage so users can share or inspect the raw APDU stream.
-        Button(
-            onClick = {
-                val file = File(context.filesDir, "communication-log.txt")
-                CommunicationLog.saveToFile(file)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("SaveButton")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Save Log File")
+            OutlinedTextField(
+                value = command,
+                onValueChange = { if (it.matches(Regex("[0-9a-fA-F]*"))) command = it },
+                modifier = Modifier.weight(1f),
+                label = { Text("Command") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                if (command.length % 2 != 0) {
+                    Toast.makeText(context, "Even amount of nibbles is required", Toast.LENGTH_SHORT).show()
+                }
+            }) {
+                Text("Send Command")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    val file = File(context.filesDir, "communication-log.txt")
+                    CommunicationLog.saveToFile(file)
+                },
+                modifier = Modifier.weight(1f).testTag("SaveButton")
+            ) {
+                Text("Save Communication")
+            }
+            Button(
+                onClick = { CommunicationLog.clear() },
+                modifier = Modifier.weight(1f).testTag("ClearButton")
+            ) {
+                Text("Clear Communication")
+            }
         }
     }
 }
@@ -292,13 +316,14 @@ private fun CircleCheckbox(
     modifier: Modifier = Modifier
 ) {
     val scheme = MaterialTheme.colorScheme
+    val disabled = scheme.onSurface.copy(alpha = 0.38f)
     val background = when {
-        !enabled -> scheme.surfaceVariant.copy(alpha = 0.6f)
-        checked -> scheme.primary
+        checked && enabled -> scheme.primary
+        checked && !enabled -> scheme.primary.copy(alpha = 0.5f)
         else -> Color.Transparent
     }
     val borderColor = when {
-        !enabled -> scheme.surfaceVariant.copy(alpha = 0.6f)
+        !enabled -> disabled
         checked -> scheme.primary
         else -> scheme.outline
     }
@@ -320,7 +345,7 @@ private fun CircleCheckbox(
             Icon(
                 imageVector = Icons.Filled.Check,
                 contentDescription = null,
-                tint = scheme.onPrimary,
+                tint = if (enabled) scheme.onPrimary else disabled,
                 modifier = Modifier.size(12.dp)
             )
         }

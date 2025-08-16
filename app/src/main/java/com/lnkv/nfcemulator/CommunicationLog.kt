@@ -2,6 +2,7 @@ package com.lnkv.nfcemulator
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 
 /**
  * Holds APDU communication logs between the external reader and the emulator.
@@ -27,5 +28,13 @@ object CommunicationLog {
      */
     fun clear() {
         _entries.value = emptyList()
+    }
+
+    /**
+     * Writes all log entries to the provided [file], each message separated by a newline.
+     */
+    fun saveToFile(file: File) {
+        val text = _entries.value.joinToString("\n") { it.message }
+        file.writeText(text)
     }
 }

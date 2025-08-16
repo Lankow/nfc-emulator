@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.material3.MaterialTheme
 import org.junit.Rule
 import org.junit.Test
@@ -23,13 +24,13 @@ class MainScreenTest {
         composeTestRule.setContent { MainScreen() }
 
         composeTestRule.onNodeWithTag("ScreenHeader").assertExists()
-        composeTestRule.onNodeWithTag("ScreenHeader").assertTextEquals("Communication")
+        composeTestRule.onNodeWithTag("ScreenHeader").assertTextEquals("COMMUNICATION")
 
         composeTestRule.onNodeWithText("Server").performClick()
-        composeTestRule.onNodeWithTag("ScreenHeader").assertTextEquals("Server")
+        composeTestRule.onNodeWithTag("ScreenHeader").assertTextEquals("SERVER")
 
         composeTestRule.onNodeWithText("Settings").performClick()
-        composeTestRule.onNodeWithTag("ScreenHeader").assertTextEquals("Settings")
+        composeTestRule.onNodeWithTag("ScreenHeader").assertTextEquals("SETTINGS")
     }
 
     @Test
@@ -45,5 +46,13 @@ class MainScreenTest {
         val image = composeTestRule.onNodeWithTag("TopBar").captureToImage()
         val actual = image.toPixelMap()[0, 0]
         assertEquals(expected.toArgb(), actual.toArgb())
+    }
+
+    @Test
+    fun navigationIconsPresent() {
+        composeTestRule.setContent { MainScreen() }
+        composeTestRule.onNodeWithContentDescription("Communication").assertExists()
+        composeTestRule.onNodeWithContentDescription("Server").assertExists()
+        composeTestRule.onNodeWithContentDescription("Settings").assertExists()
     }
 }

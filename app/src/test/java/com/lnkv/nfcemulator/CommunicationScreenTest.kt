@@ -75,14 +75,20 @@ class CommunicationScreenTest {
     fun togglesAlignWithLogs() {
         composeTestRule.setContent { CommunicationScreen(emptyList()) }
 
-        val serverToggleX = composeTestRule.onNodeWithTag("ServerToggle").fetchSemanticsNode().positionInRoot.x
+        val serverCheckX = composeTestRule.onNodeWithTag("ServerCheck").fetchSemanticsNode().positionInRoot.x
         val serverLogX = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().positionInRoot.x
 
-        val nfcToggleX = composeTestRule.onNodeWithTag("NfcToggle").fetchSemanticsNode().positionInRoot.x
+        val nfcCheckX = composeTestRule.onNodeWithTag("NfcCheck").fetchSemanticsNode().positionInRoot.x
         val nfcLogX = composeTestRule.onNodeWithTag("NfcLog").fetchSemanticsNode().positionInRoot.x
 
-        assertEquals(serverLogX, serverToggleX)
-        assertEquals(nfcLogX, nfcToggleX)
+        assertEquals(serverLogX, serverCheckX)
+        assertEquals(nfcLogX, nfcCheckX)
+    }
+
+    @Test
+    fun saveButtonIsDisplayed() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+        composeTestRule.onNodeWithTag("SaveButton").assertExists()
     }
 }
 

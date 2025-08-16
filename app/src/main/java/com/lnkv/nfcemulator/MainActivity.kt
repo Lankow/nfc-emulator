@@ -16,6 +16,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,6 +41,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
@@ -89,10 +97,10 @@ fun MainScreen() {
 
     androidx.compose.material3.Scaffold(
         topBar = {
-            TopAppBar(
+                TopAppBar(
                 modifier = Modifier.testTag("TopBar"),
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary),
-                title = { Text(currentScreen.label, modifier = Modifier.testTag("ScreenHeader")) }
+                title = { Text(currentScreen.label.uppercase(), modifier = Modifier.testTag("ScreenHeader")) }
             )
         },
         bottomBar = {
@@ -101,7 +109,13 @@ fun MainScreen() {
                     NavigationBarItem(
                         selected = currentScreen == screen,
                         onClick = { currentScreen = screen },
-                        icon = { Box(modifier = Modifier.height(24.dp)) },
+                        icon = {
+                            when (screen) {
+                                Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
+                                Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
+                                Screen.Settings -> Icon(Icons.Filled.Settings, contentDescription = screen.label)
+                            }
+                        },
                         label = { Text(screen.label) }
                     )
                 }
@@ -127,12 +141,11 @@ fun CommunicationScreen(
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
 
-    Column(modifier = modifier.fillMaxSize().padding(vertical = 16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .testTag("ServerToggle")
         ) {
             Checkbox(
@@ -140,8 +153,12 @@ fun CommunicationScreen(
                 onCheckedChange = { checked ->
                     if (!checked && !showNfc) return@Checkbox
                     showServer = checked
-                }
+                },
+                modifier = Modifier
+                    .offset(x = (-4).dp)
+                    .testTag("ServerCheck")
             )
+            Spacer(modifier = Modifier.width(8.dp))
             Text("Server Communication")
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -149,7 +166,6 @@ fun CommunicationScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .testTag("NfcToggle")
         ) {
             Checkbox(
@@ -157,8 +173,12 @@ fun CommunicationScreen(
                 onCheckedChange = { checked ->
                     if (!checked && !showServer) return@Checkbox
                     showNfc = checked
-                }
+                },
+                modifier = Modifier
+                    .offset(x = (-4).dp)
+                    .testTag("NfcCheck")
             )
+            Spacer(modifier = Modifier.width(8.dp))
             Text("NFC Communication")
         }
 
@@ -166,7 +186,6 @@ fun CommunicationScreen(
         Divider(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .align(Alignment.CenterHorizontally)
                 .testTag("ToggleDivider")
         )
@@ -181,18 +200,14 @@ fun CommunicationScreen(
                     label = "Server Communication",
                     entries = serverEntries,
                     tag = "ServerLog",
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp)
+                    modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 CommunicationLogList(
                     label = "NFC Communication",
                     entries = nfcEntries,
                     tag = "NfcLog",
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp)
+                    modifier = Modifier.weight(1f)
                 )
             }
             showServer -> {
@@ -200,9 +215,7 @@ fun CommunicationScreen(
                     label = "Server Communication",
                     entries = serverEntries,
                     tag = "ServerLog",
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp)
+                    modifier = Modifier.weight(1f)
                 )
             }
             showNfc -> {
@@ -210,11 +223,21 @@ fun CommunicationScreen(
                     label = "NFC Communication",
                     entries = nfcEntries,
                     tag = "NfcLog",
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp)
+                    modifier = Modifier.weight(1f)
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        val context = LocalContext.current
+        Button(
+            onClick = {
+                val file = File(context.filesDir, "communication-log.txt")
+                CommunicationLog.saveToFile(file)
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally).testTag("SaveButton")
+        ) {
+            Text("Save Log File")
         }
     }
 }

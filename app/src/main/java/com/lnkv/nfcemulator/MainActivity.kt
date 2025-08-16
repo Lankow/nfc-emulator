@@ -27,6 +27,9 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
@@ -107,7 +110,10 @@ fun CommunicationScreen(
     var showOutgoing by rememberSaveable { mutableStateOf(true) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().testTag("IncomingToggle")
+        ) {
             Checkbox(
                 checked = showIncoming,
                 onCheckedChange = { checked ->
@@ -115,10 +121,13 @@ fun CommunicationScreen(
                     showIncoming = checked
                 }
             )
-            Text("Show Incoming Communication")
+            Text("Incoming Communication")
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().testTag("OutgoingToggle")
+        ) {
             Checkbox(
                 checked = showOutgoing,
                 onCheckedChange = { checked ->
@@ -126,7 +135,7 @@ fun CommunicationScreen(
                     showOutgoing = checked
                 }
             )
-            Text("Show Outgoing Communication")
+            Text("Outgoing Communication")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -186,14 +195,19 @@ private fun CommunicationLogList(
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(label)
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFE0E0E0))
                 .testTag(tag)
+                .padding(8.dp)
         ) {
-            items(entries) { entry ->
-                val color = if (entry.isRequest) Color.Red else Color.Green
-                Text(entry.message, color = color)
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(entries) { entry ->
+                    val color = if (entry.isRequest) Color.Red else Color.Green
+                    Text(entry.message, color = color)
+                }
             }
         }
     }

@@ -2,9 +2,11 @@ package com.lnkv.nfcemulator
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.*
+import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertTrue
+import kotlin.test.assertEquals
 
 class CommunicationScreenTest {
 
@@ -38,11 +40,25 @@ class CommunicationScreenTest {
         }
 
         val heightBoth = composeTestRule.onNodeWithTag("IncomingLog").fetchSemanticsNode().size.height
-        composeTestRule.onNodeWithText("Show Outgoing Communication").performClick()
+        composeTestRule.onNodeWithText("Outgoing Communication").performClick()
         composeTestRule.waitForIdle()
         val heightSingle = composeTestRule.onNodeWithTag("IncomingLog").fetchSemanticsNode().size.height
         assertTrue(heightSingle > heightBoth)
         composeTestRule.onNodeWithText("A1B2").assertDoesNotExist()
+    }
+
+    @Test
+    fun toggleRowsFillWidth() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+
+        val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
+        val expectedWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
+
+        val incomingWidth = composeTestRule.onNodeWithTag("IncomingToggle").fetchSemanticsNode().size.width
+        val outgoingWidth = composeTestRule.onNodeWithTag("OutgoingToggle").fetchSemanticsNode().size.width
+
+        assertEquals(expectedWidth, incomingWidth)
+        assertEquals(expectedWidth, outgoingWidth)
     }
 }
 

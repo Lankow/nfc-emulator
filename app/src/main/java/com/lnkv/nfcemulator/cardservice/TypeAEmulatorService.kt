@@ -5,8 +5,17 @@ import android.os.Bundle
 import android.util.Log
 import com.lnkv.nfcemulator.CommunicationLog
 
+/**
+ * Service that handles ISO 14443-4 (APDU) communication. It responds to incoming
+ * commands from an NFC reader while the phone is emulating a Type A card.
+ */
 class TypeAEmulatorService : HostApduService() {
 
+    /**
+     * Processes a command APDU from the external NFC reader. For this simple example
+     * we only react to a SELECT command and return *90 00* (success). Any other
+     * command results in *6A 82* (file not found).
+     */
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
         if (commandApdu == null) return UNKNOWN_COMMAND
 
@@ -20,6 +29,9 @@ class TypeAEmulatorService : HostApduService() {
         return response
     }
 
+    /**
+     * Checks whether the incoming APDU is a standard SELECT command.
+     */
     private fun isSelectCommand(apdu: ByteArray): Boolean {
         return apdu.size >= 4 &&
             apdu[0] == 0x00.toByte() &&
@@ -39,5 +51,8 @@ class TypeAEmulatorService : HostApduService() {
     }
 }
 
+/**
+ * Helper extension to convert a byte array to a hexadecimal string for logging.
+ */
 private fun ByteArray.toHex(): String =
     joinToString("") { "%02X".format(it.toInt() and 0xFF) }

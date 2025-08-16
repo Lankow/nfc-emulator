@@ -27,6 +27,10 @@ import androidx.compose.ui.unit.dp
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
+/**
+ * Main activity displaying the UI for configuring emulated AIDs and
+ * showing a log of APDU requests and responses.
+ */
 class MainActivity : ComponentActivity() {
     private lateinit var cardEmulation: CardEmulation
     private lateinit var componentName: ComponentName
@@ -35,12 +39,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
+        // Set up references to the NFC subsystem and our emulation service
         val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         cardEmulation = CardEmulation.getInstance(nfcAdapter)
         componentName = ComponentName(this, TypeAEmulatorService::class.java)
         prefs = getSharedPreferences("nfc_aids", MODE_PRIVATE)
 
+        // Load and register previously stored AIDs
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
         registerAids(storedAids)
 
@@ -59,6 +64,7 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .padding(16.dp)
                 ) {
+                    // Toggle visibility for the first AID entry field
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = showAid1,
@@ -73,6 +79,7 @@ class MainActivity : ComponentActivity() {
                         ScrollableTextField(aid1, { aid1 = it }, scrollState1, "AID 1")
                     }
 
+                    // Toggle visibility for the second AID entry field
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = showAid2,
@@ -89,6 +96,7 @@ class MainActivity : ComponentActivity() {
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = {
+                        // Gather visible AIDs and store them for future sessions
                         val aids = mutableListOf<String>()
                         if (showAid1 && aid1.isNotBlank()) aids.add(aid1)
                         if (showAid2 && aid2.isNotBlank()) aids.add(aid2)
@@ -105,6 +113,7 @@ class MainActivity : ComponentActivity() {
                             .fillMaxWidth()
                             .weight(1f)
                     ) {
+                        // Display APDU exchanges, color-coded by direction
                         items(logEntries) { entry ->
                             Text(
                                 text = entry.message,
@@ -117,11 +126,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Registers the given AIDs with Android's card emulation system so
+     * APDU commands targeting them are routed to our service.
+     */
     private fun registerAids(aids: List<String>) {
         cardEmulation.registerAidsForService(componentName, CardEmulation.CATEGORY_OTHER, aids)
     }
 }
-
+/**
+ * Text field used for entering long hexadecimal AIDs. It enables vertical
+ * scrolling so the user can review and edit the entire value.
+ */
 @Composable
 private fun ScrollableTextField(
     value: String,

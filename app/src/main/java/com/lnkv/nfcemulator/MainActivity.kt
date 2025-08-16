@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
@@ -154,39 +155,55 @@ fun CommunicationScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .testTag("ServerToggle")
         ) {
             Checkbox(
                 checked = showServer,
                 onCheckedChange = { showServer = it },
                 enabled = showNfc || !showServer,
-                modifier = Modifier
-                    .offset(x = (-4).dp)
-                    .testTag("ServerCheck")
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = MaterialTheme.colorScheme.outline,
+                    checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledCheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    disabledUncheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                ),
+                modifier = Modifier.testTag("ServerCheck")
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Server Communication")
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Server Communication", style = MaterialTheme.typography.bodyLarge)
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .testTag("NfcToggle")
         ) {
             Checkbox(
                 checked = showNfc,
                 onCheckedChange = { showNfc = it },
                 enabled = showServer || !showNfc,
-                modifier = Modifier
-                    .offset(x = (-4).dp)
-                    .testTag("NfcCheck")
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = MaterialTheme.colorScheme.outline,
+                    checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledCheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    disabledUncheckedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                ),
+                modifier = Modifier.testTag("NfcCheck")
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("NFC Communication")
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("NFC Communication", style = MaterialTheme.typography.bodyLarge)
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier
                 .fillMaxWidth()

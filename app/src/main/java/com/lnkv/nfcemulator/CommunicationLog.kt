@@ -20,4 +20,12 @@ object CommunicationLog {
     fun add(message: String, isRequest: Boolean) {
         _entries.value = _entries.value + Entry(message, isRequest)
     }
+
+    /**
+     * Clears all stored log entries. Useful for resetting state in tests or when
+     * starting a new emulation session.
+     */
+    fun clear() {
+        _entries.value = emptyList()
+    }
 }

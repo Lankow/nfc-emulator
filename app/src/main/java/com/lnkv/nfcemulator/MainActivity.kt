@@ -11,7 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -83,6 +83,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Navigation targets displayed in the bottom bar.
+ */
 enum class Screen(val label: String) {
     Communication("Communication"),
     Server("Server"),
@@ -133,6 +136,11 @@ fun MainScreen() {
     }
 }
 
+/**
+ * UI for monitoring APDU traffic. Two toggles control visibility of
+ * server (incoming) and NFC (outgoing) streams while the logs expand to
+ * fill available space when shown individually.
+ */
 @Composable
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
@@ -158,7 +166,7 @@ fun CommunicationScreen(
                     .offset(x = (-4).dp)
                     .testTag("ServerCheck")
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text("Server Communication")
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -178,12 +186,12 @@ fun CommunicationScreen(
                     .offset(x = (-4).dp)
                     .testTag("NfcCheck")
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text("NFC Communication")
         }
 
         Spacer(modifier = Modifier.height(4.dp))
-        Divider(
+        HorizontalDivider(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.CenterHorizontally)
@@ -230,18 +238,25 @@ fun CommunicationScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         val context = LocalContext.current
+        // Persist the current communication log to a text file in the app's
+        // internal storage so users can share or inspect the raw APDU stream.
         Button(
             onClick = {
                 val file = File(context.filesDir, "communication-log.txt")
                 CommunicationLog.saveToFile(file)
             },
-            modifier = Modifier.align(Alignment.CenterHorizontally).testTag("SaveButton")
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("SaveButton")
         ) {
             Text("Save Log File")
         }
     }
 }
 
+/**
+ * Simple placeholder used for sections that are not yet implemented.
+ */
 @Composable
 fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Center) {
@@ -249,6 +264,10 @@ fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Renders a labeled list of communication log [entries]. Each list item is
+ * colored red for requests and green for responses.
+ */
 @Composable
 private fun CommunicationLogList(
     label: String,

@@ -74,21 +74,30 @@ class CommunicationScreenTest {
     @Test
     fun togglesAlignWithLogs() {
         composeTestRule.setContent { CommunicationScreen(emptyList()) }
-
-        val serverCheckX = composeTestRule.onNodeWithTag("ServerCheck").fetchSemanticsNode().positionInRoot.x
+        val serverToggleX = composeTestRule.onNodeWithTag("ServerToggle").fetchSemanticsNode().positionInRoot.x
         val serverLogX = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().positionInRoot.x
 
-        val nfcCheckX = composeTestRule.onNodeWithTag("NfcCheck").fetchSemanticsNode().positionInRoot.x
+        val nfcToggleX = composeTestRule.onNodeWithTag("NfcToggle").fetchSemanticsNode().positionInRoot.x
         val nfcLogX = composeTestRule.onNodeWithTag("NfcLog").fetchSemanticsNode().positionInRoot.x
 
-        assertEquals(serverLogX, serverCheckX)
-        assertEquals(nfcLogX, nfcCheckX)
+        assertEquals(serverLogX, serverToggleX)
+        assertEquals(nfcLogX, nfcToggleX)
     }
 
     @Test
     fun saveButtonIsDisplayed() {
         composeTestRule.setContent { CommunicationScreen(emptyList()) }
         composeTestRule.onNodeWithTag("SaveButton").assertExists()
+    }
+
+    @Test
+    fun saveButtonMatchesLogWidth() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+
+        val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
+        val buttonWidth = composeTestRule.onNodeWithTag("SaveButton").fetchSemanticsNode().size.width
+
+        assertEquals(logWidth, buttonWidth)
     }
 }
 

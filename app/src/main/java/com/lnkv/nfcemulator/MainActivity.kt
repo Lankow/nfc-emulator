@@ -158,10 +158,8 @@ fun CommunicationScreen(
         ) {
             Checkbox(
                 checked = showServer,
-                onCheckedChange = { checked ->
-                    if (!checked && !showNfc) return@Checkbox
-                    showServer = checked
-                },
+                onCheckedChange = { showServer = it },
+                enabled = showNfc || !showServer,
                 modifier = Modifier
                     .offset(x = (-4).dp)
                     .testTag("ServerCheck")
@@ -178,10 +176,8 @@ fun CommunicationScreen(
         ) {
             Checkbox(
                 checked = showNfc,
-                onCheckedChange = { checked ->
-                    if (!checked && !showServer) return@Checkbox
-                    showNfc = checked
-                },
+                onCheckedChange = { showNfc = it },
+                enabled = showServer || !showNfc,
                 modifier = Modifier
                     .offset(x = (-4).dp)
                     .testTag("NfcCheck")
@@ -202,38 +198,24 @@ fun CommunicationScreen(
         val serverEntries = entries.filter { it.isRequest }
         val nfcEntries = entries.filter { !it.isRequest }
 
-        when {
-            showServer && showNfc -> {
-                CommunicationLogList(
-                    label = "Server Communication",
-                    entries = serverEntries,
-                    tag = "ServerLog",
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                CommunicationLogList(
-                    label = "NFC Communication",
-                    entries = nfcEntries,
-                    tag = "NfcLog",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            showServer -> {
-                CommunicationLogList(
-                    label = "Server Communication",
-                    entries = serverEntries,
-                    tag = "ServerLog",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            showNfc -> {
-                CommunicationLogList(
-                    label = "NFC Communication",
-                    entries = nfcEntries,
-                    tag = "NfcLog",
-                    modifier = Modifier.weight(1f)
-                )
-            }
+        if (showServer) {
+            CommunicationLogList(
+                label = "Server Communication",
+                entries = serverEntries,
+                tag = "ServerLog",
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (showServer && showNfc) {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        if (showNfc) {
+            CommunicationLogList(
+                label = "NFC Communication",
+                entries = nfcEntries,
+                tag = "NfcLog",
+                modifier = Modifier.weight(1f)
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))

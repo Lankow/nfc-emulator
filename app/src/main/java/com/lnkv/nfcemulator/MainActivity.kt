@@ -11,6 +11,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.Divider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -123,7 +125,7 @@ fun CommunicationScreen(
             )
             Text("Incoming Communication")
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().testTag("OutgoingToggle")
@@ -138,6 +140,13 @@ fun CommunicationScreen(
             Text("Outgoing Communication")
         }
 
+        Spacer(modifier = Modifier.height(4.dp))
+        Divider(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .align(Alignment.CenterHorizontally)
+                .testTag("ToggleDivider")
+        )
         Spacer(modifier = Modifier.height(8.dp))
 
         val incomingEntries = entries.filter { it.isRequest }
@@ -195,11 +204,12 @@ private fun CommunicationLogList(
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(label)
+        Spacer(modifier = Modifier.height(8.dp))
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFE0E0E0))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .testTag(tag)
                 .padding(8.dp)
         ) {

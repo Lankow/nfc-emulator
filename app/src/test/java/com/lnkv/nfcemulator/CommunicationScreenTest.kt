@@ -7,6 +7,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertTrue
 import kotlin.test.assertEquals
+import kotlin.math.roundToInt
 
 class CommunicationScreenTest {
 
@@ -59,6 +60,19 @@ class CommunicationScreenTest {
 
         assertEquals(expectedWidth, incomingWidth)
         assertEquals(expectedWidth, outgoingWidth)
+    }
+
+    @Test
+    fun dividerSpansNinetyPercentWidth() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+
+        val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
+        val contentWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
+        val expectedWidth = (contentWidth * 0.9f).roundToInt()
+
+        val dividerWidth = composeTestRule.onNodeWithTag("ToggleDivider").fetchSemanticsNode().size.width
+
+        assertEquals(expectedWidth, dividerWidth)
     }
 }
 

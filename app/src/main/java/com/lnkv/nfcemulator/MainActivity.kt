@@ -8,28 +8,47 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.ScrollState
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment.Companion.Center
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
 /**
- * Main activity displaying the UI for configuring emulated AIDs and
- * showing a log of APDU requests and responses.
+ * Main activity hosting a bottom navigation menu that switches between
+ * Communication, Server, and Settings screens.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var cardEmulation: CardEmulation
@@ -39,119 +58,241 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Set up references to the NFC subsystem and our emulation service
+
         val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         cardEmulation = CardEmulation.getInstance(nfcAdapter)
         componentName = ComponentName(this, TypeAEmulatorService::class.java)
         prefs = getSharedPreferences("nfc_aids", MODE_PRIVATE)
 
-        // Load and register previously stored AIDs
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
         registerAids(storedAids)
 
         setContent {
             NFCEmulatorTheme {
-                var aid1 by rememberSaveable { mutableStateOf(storedAids.getOrNull(0) ?: "") }
-                var aid2 by rememberSaveable { mutableStateOf(storedAids.getOrNull(1) ?: "") }
-                var showAid1 by rememberSaveable { mutableStateOf(true) }
-                var showAid2 by rememberSaveable { mutableStateOf(true) }
-                val scrollState1 = rememberScrollState()
-                val scrollState2 = rememberScrollState()
-                val logEntries by CommunicationLog.entries.collectAsState()
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                ) {
-                    // Toggle visibility for the first AID entry field
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = showAid1,
-                            onCheckedChange = { checked ->
-                                if (!checked && !showAid2) return@Checkbox
-                                showAid1 = checked
-                            }
-                        )
-                        Text("Show AID 1")
-                    }
-                    if (showAid1) {
-                        ScrollableTextField(aid1, { aid1 = it }, scrollState1, "AID 1")
-                    }
-
-                    // Toggle visibility for the second AID entry field
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = showAid2,
-                            onCheckedChange = { checked ->
-                                if (!checked && !showAid1) return@Checkbox
-                                showAid2 = checked
-                            }
-                        )
-                        Text("Show AID 2")
-                    }
-                    if (showAid2) {
-                        ScrollableTextField(aid2, { aid2 = it }, scrollState2, "AID 2")
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = {
-                        // Gather visible AIDs and store them for future sessions
-                        val aids = mutableListOf<String>()
-                        if (showAid1 && aid1.isNotBlank()) aids.add(aid1)
-                        if (showAid2 && aid2.isNotBlank()) aids.add(aid2)
-                        registerAids(aids)
-                        prefs.edit().putStringSet("aids", aids.toSet()).apply()
-                    }) {
-                        Text("Save AIDs")
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Communication Log")
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    ) {
-                        // Display APDU exchanges, color-coded by direction
-                        items(logEntries) { entry ->
-                            Text(
-                                text = entry.message,
-                                color = if (entry.isRequest) Color.Red else Color.Green
-                            )
-                        }
-                    }
-                }
+                MainScreen()
             }
         }
     }
 
-    /**
-     * Registers the given AIDs with Android's card emulation system so
-     * APDU commands targeting them are routed to our service.
-     */
     private fun registerAids(aids: List<String>) {
-        cardEmulation.registerAidsForService(componentName, CardEmulation.CATEGORY_OTHER, aids)
+        cardEmulation.registerAidsForService(
+            componentName,
+            CardEmulation.CATEGORY_OTHER,
+            aids
+        )
     }
 }
+
 /**
- * Text field used for entering long hexadecimal AIDs. It enables vertical
- * scrolling so the user can review and edit the entire value.
+ * Navigation targets displayed in the bottom bar.
+ */
+enum class Screen(val label: String) {
+    Communication("Communication"),
+    Server("Server"),
+    Settings("Settings")
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen() {
+    var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }
+    val logEntries by CommunicationLog.entries.collectAsState()
+
+    androidx.compose.material3.Scaffold(
+        topBar = {
+                TopAppBar(
+                modifier = Modifier.testTag("TopBar"),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary),
+                title = { Text(currentScreen.label.uppercase(), modifier = Modifier.testTag("ScreenHeader")) }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                Screen.entries.forEach { screen ->
+                    NavigationBarItem(
+                        selected = currentScreen == screen,
+                        onClick = { currentScreen = screen },
+                        icon = {
+                            when (screen) {
+                                Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
+                                Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
+                                Screen.Settings -> Icon(Icons.Filled.Settings, contentDescription = screen.label)
+                            }
+                        },
+                        label = { Text(screen.label) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        when (currentScreen) {
+            Screen.Communication ->
+                CommunicationScreen(logEntries, Modifier.padding(padding))
+            Screen.Server ->
+                PlaceholderScreen("Server", Modifier.padding(padding))
+            Screen.Settings ->
+                PlaceholderScreen("Settings", Modifier.padding(padding))
+        }
+    }
+}
+
+/**
+ * UI for monitoring APDU traffic. Two toggles control visibility of
+ * server (incoming) and NFC (outgoing) streams while the logs expand to
+ * fill available space when shown individually.
  */
 @Composable
-private fun ScrollableTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    scrollState: ScrollState,
-    label: String
+fun CommunicationScreen(
+    entries: List<CommunicationLog.Entry>,
+    modifier: Modifier = Modifier
 ) {
-    TextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp)
-            .verticalScroll(scrollState),
-        label = { Text(label) }
-    )
+    var showServer by rememberSaveable { mutableStateOf(true) }
+    var showNfc by rememberSaveable { mutableStateOf(true) }
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ServerToggle")
+        ) {
+            Checkbox(
+                checked = showServer,
+                onCheckedChange = { checked ->
+                    if (!checked && !showNfc) return@Checkbox
+                    showServer = checked
+                },
+                modifier = Modifier
+                    .offset(x = (-4).dp)
+                    .testTag("ServerCheck")
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Server Communication")
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("NfcToggle")
+        ) {
+            Checkbox(
+                checked = showNfc,
+                onCheckedChange = { checked ->
+                    if (!checked && !showServer) return@Checkbox
+                    showNfc = checked
+                },
+                modifier = Modifier
+                    .offset(x = (-4).dp)
+                    .testTag("NfcCheck")
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("NFC Communication")
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        HorizontalDivider(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.CenterHorizontally)
+                .testTag("ToggleDivider")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val serverEntries = entries.filter { it.isRequest }
+        val nfcEntries = entries.filter { !it.isRequest }
+
+        when {
+            showServer && showNfc -> {
+                CommunicationLogList(
+                    label = "Server Communication",
+                    entries = serverEntries,
+                    tag = "ServerLog",
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                CommunicationLogList(
+                    label = "NFC Communication",
+                    entries = nfcEntries,
+                    tag = "NfcLog",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            showServer -> {
+                CommunicationLogList(
+                    label = "Server Communication",
+                    entries = serverEntries,
+                    tag = "ServerLog",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            showNfc -> {
+                CommunicationLogList(
+                    label = "NFC Communication",
+                    entries = nfcEntries,
+                    tag = "NfcLog",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        val context = LocalContext.current
+        // Persist the current communication log to a text file in the app's
+        // internal storage so users can share or inspect the raw APDU stream.
+        Button(
+            onClick = {
+                val file = File(context.filesDir, "communication-log.txt")
+                CommunicationLog.saveToFile(file)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("SaveButton")
+        ) {
+            Text("Save Log File")
+        }
+    }
 }
+
+/**
+ * Simple placeholder used for sections that are not yet implemented.
+ */
+@Composable
+fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Center) {
+        Text(text)
+    }
+}
+
+/**
+ * Renders a labeled list of communication log [entries]. Each list item is
+ * colored red for requests and green for responses.
+ */
+@Composable
+private fun CommunicationLogList(
+    label: String,
+    entries: List<CommunicationLog.Entry>,
+    tag: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier.fillMaxWidth()) {
+        Text(label)
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .testTag(tag)
+                .padding(8.dp)
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(entries) { entry ->
+                    val color = if (entry.isRequest) Color.Red else Color.Green
+                    Text(entry.message, color = color)
+                }
+            }
+        }
+    }
+}
+

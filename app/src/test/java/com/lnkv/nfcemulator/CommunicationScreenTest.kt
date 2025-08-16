@@ -7,7 +7,6 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertTrue
 import kotlin.test.assertEquals
-import kotlin.math.roundToInt
 
 class CommunicationScreenTest {
 
@@ -15,7 +14,7 @@ class CommunicationScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun showsIncomingAndOutgoingMessages() {
+    fun showsServerAndNfcMessages() {
         val entries = listOf(
             CommunicationLog.Entry("0102", true),
             CommunicationLog.Entry("A1B2", false)
@@ -30,7 +29,7 @@ class CommunicationScreenTest {
     }
 
     @Test
-    fun incomingExpandsWhenOutgoingHidden() {
+    fun serverExpandsWhenNfcHidden() {
         val entries = listOf(
             CommunicationLog.Entry("0102", true),
             CommunicationLog.Entry("A1B2", false)
@@ -40,10 +39,10 @@ class CommunicationScreenTest {
             CommunicationScreen(entries)
         }
 
-        val heightBoth = composeTestRule.onNodeWithTag("IncomingLog").fetchSemanticsNode().size.height
-        composeTestRule.onNodeWithText("Outgoing Communication").performClick()
+        val heightBoth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.height
+        composeTestRule.onNodeWithText("NFC Communication").performClick()
         composeTestRule.waitForIdle()
-        val heightSingle = composeTestRule.onNodeWithTag("IncomingLog").fetchSemanticsNode().size.height
+        val heightSingle = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.height
         assertTrue(heightSingle > heightBoth)
         composeTestRule.onNodeWithText("A1B2").assertDoesNotExist()
     }
@@ -55,24 +54,21 @@ class CommunicationScreenTest {
         val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
         val expectedWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
 
-        val incomingWidth = composeTestRule.onNodeWithTag("IncomingToggle").fetchSemanticsNode().size.width
-        val outgoingWidth = composeTestRule.onNodeWithTag("OutgoingToggle").fetchSemanticsNode().size.width
+        val serverWidth = composeTestRule.onNodeWithTag("ServerToggle").fetchSemanticsNode().size.width
+        val nfcWidth = composeTestRule.onNodeWithTag("NfcToggle").fetchSemanticsNode().size.width
 
-        assertEquals(expectedWidth, incomingWidth)
-        assertEquals(expectedWidth, outgoingWidth)
+        assertEquals(expectedWidth, serverWidth)
+        assertEquals(expectedWidth, nfcWidth)
     }
 
     @Test
-    fun dividerSpansNinetyPercentWidth() {
+    fun dividerMatchesLogWidth() {
         composeTestRule.setContent { CommunicationScreen(emptyList()) }
 
-        val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
-        val contentWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
-        val expectedWidth = (contentWidth * 0.9f).roundToInt()
-
+        val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
         val dividerWidth = composeTestRule.onNodeWithTag("ToggleDivider").fetchSemanticsNode().size.width
 
-        assertEquals(expectedWidth, dividerWidth)
+        assertEquals(logWidth, dividerWidth)
     }
 }
 

@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,32 +59,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             NFCEmulatorTheme {
-                var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }
-                val logEntries by CommunicationLog.entries.collectAsState()
-
-                androidx.compose.material3.Scaffold(
-                    bottomBar = {
-                        NavigationBar {
-                            Screen.entries.forEach { screen ->
-                                NavigationBarItem(
-                                    selected = currentScreen == screen,
-                                    onClick = { currentScreen = screen },
-                                    icon = { Box(modifier = Modifier.height(24.dp)) },
-                                    label = { Text(screen.label) }
-                                )
-                            }
-                        }
-                    }
-                ) { padding ->
-                    when (currentScreen) {
-                        Screen.Communication ->
-                            CommunicationScreen(logEntries, Modifier.padding(padding))
-                        Screen.Server ->
-                            PlaceholderScreen("Server", Modifier.padding(padding))
-                        Screen.Settings ->
-                            PlaceholderScreen("Settings", Modifier.padding(padding))
-                    }
-                }
+                MainScreen()
             }
         }
     }
@@ -104,83 +80,116 @@ enum class Screen(val label: String) {
 }
 
 @Composable
+fun MainScreen() {
+    var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }
+    val logEntries by CommunicationLog.entries.collectAsState()
+
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            TopAppBar(title = { Text(currentScreen.label, modifier = Modifier.testTag("ScreenHeader")) })
+        },
+        bottomBar = {
+            NavigationBar {
+                Screen.entries.forEach { screen ->
+                    NavigationBarItem(
+                        selected = currentScreen == screen,
+                        onClick = { currentScreen = screen },
+                        icon = { Box(modifier = Modifier.height(24.dp)) },
+                        label = { Text(screen.label) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        when (currentScreen) {
+            Screen.Communication ->
+                CommunicationScreen(logEntries, Modifier.padding(padding))
+            Screen.Server ->
+                PlaceholderScreen("Server", Modifier.padding(padding))
+            Screen.Settings ->
+                PlaceholderScreen("Settings", Modifier.padding(padding))
+        }
+    }
+}
+
+@Composable
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
     modifier: Modifier = Modifier
 ) {
-    var showIncoming by rememberSaveable { mutableStateOf(true) }
-    var showOutgoing by rememberSaveable { mutableStateOf(true) }
+    var showServer by rememberSaveable { mutableStateOf(true) }
+    var showNfc by rememberSaveable { mutableStateOf(true) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().testTag("IncomingToggle")
+            modifier = Modifier.fillMaxWidth().testTag("ServerToggle")
         ) {
             Checkbox(
-                checked = showIncoming,
+                checked = showServer,
                 onCheckedChange = { checked ->
-                    if (!checked && !showOutgoing) return@Checkbox
-                    showIncoming = checked
+                    if (!checked && !showNfc) return@Checkbox
+                    showServer = checked
                 }
             )
-            Text("Incoming Communication")
+            Text("Server Communication")
         }
         Spacer(modifier = Modifier.height(4.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().testTag("OutgoingToggle")
+            modifier = Modifier.fillMaxWidth().testTag("NfcToggle")
         ) {
             Checkbox(
-                checked = showOutgoing,
+                checked = showNfc,
                 onCheckedChange = { checked ->
-                    if (!checked && !showIncoming) return@Checkbox
-                    showOutgoing = checked
+                    if (!checked && !showServer) return@Checkbox
+                    showNfc = checked
                 }
             )
-            Text("Outgoing Communication")
+            Text("NFC Communication")
         }
 
         Spacer(modifier = Modifier.height(4.dp))
         Divider(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
+                .fillMaxWidth()
                 .align(Alignment.CenterHorizontally)
                 .testTag("ToggleDivider")
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        val incomingEntries = entries.filter { it.isRequest }
-        val outgoingEntries = entries.filter { !it.isRequest }
+        val serverEntries = entries.filter { it.isRequest }
+        val nfcEntries = entries.filter { !it.isRequest }
 
         when {
-            showIncoming && showOutgoing -> {
+            showServer && showNfc -> {
                 CommunicationLogList(
-                    label = "Incoming Communication",
-                    entries = incomingEntries,
-                    tag = "IncomingLog",
+                    label = "Server Communication",
+                    entries = serverEntries,
+                    tag = "ServerLog",
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 CommunicationLogList(
-                    label = "Outgoing Communication",
-                    entries = outgoingEntries,
-                    tag = "OutgoingLog",
+                    label = "NFC Communication",
+                    entries = nfcEntries,
+                    tag = "NfcLog",
                     modifier = Modifier.weight(1f)
                 )
             }
-            showIncoming -> {
+            showServer -> {
                 CommunicationLogList(
-                    label = "Incoming Communication",
-                    entries = incomingEntries,
-                    tag = "IncomingLog",
+                    label = "Server Communication",
+                    entries = serverEntries,
+                    tag = "ServerLog",
                     modifier = Modifier.weight(1f)
                 )
             }
-            showOutgoing -> {
+            showNfc -> {
                 CommunicationLogList(
-                    label = "Outgoing Communication",
-                    entries = outgoingEntries,
-                    tag = "OutgoingLog",
+                    label = "NFC Communication",
+                    entries = nfcEntries,
+                    tag = "NfcLog",
                     modifier = Modifier.weight(1f)
                 )
             }

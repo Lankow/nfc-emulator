@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -79,6 +80,7 @@ enum class Screen(val label: String) {
     Settings("Settings")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }

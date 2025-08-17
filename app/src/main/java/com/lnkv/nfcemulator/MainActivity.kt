@@ -3,7 +3,9 @@
 package com.lnkv.nfcemulator
 
 import android.content.ComponentName
+import android.content.Context
 import android.content.SharedPreferences
+import android.net.wifi.WifiManager
 import android.nfc.NfcAdapter
 import android.nfc.cardemulation.CardEmulation
 import android.os.Bundle
@@ -65,6 +67,9 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import java.io.File
+import java.net.InetAddress
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
@@ -327,10 +332,23 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
     }
 }
 
+private fun getLocalIpAddress(context: Context): String? {
+    return try {
+        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val ipInt = wm.connectionInfo?.ipAddress ?: return null
+        if (ipInt == 0) null else {
+            val bytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(ipInt).array()
+            InetAddress.getByAddress(bytes).hostAddress
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
 @Composable
 fun ServerScreen(modifier: Modifier = Modifier) {
     var isExternal by rememberSaveable { mutableStateOf(true) }
-    var ip by rememberSaveable { mutableStateOf("192.168.0.1") }
+    var ip by rememberSaveable { mutableStateOf("192.168.0.1:8080") }
     var pollingTime by rememberSaveable { mutableStateOf("100") }
     var autoConnect by rememberSaveable { mutableStateOf(false) }
     var isServerConnected by rememberSaveable { mutableStateOf(false) }
@@ -339,10 +357,10 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     var autoStart by rememberSaveable { mutableStateOf(false) }
     var isServerRunning by rememberSaveable { mutableStateOf(false) }
     val connectedDevices = remember { mutableStateListOf<String>() }
-    val localIp = remember { "192.168.0.100" }
     val context = LocalContext.current
+    val localIp = remember { getLocalIpAddress(context) }
     val ipRegex =
-        Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")
+        Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}:(\\d{1,5})$")
 
     val segColors = SegmentedButtonDefaults.colors(
         activeContainerColor = MaterialTheme.colorScheme.primary,
@@ -375,19 +393,19 @@ fun ServerScreen(modifier: Modifier = Modifier) {
             OutlinedTextField(
                 value = ip,
                 onValueChange = { value ->
-                    if (value.matches(Regex("[0-9.]*"))) {
+                    if (value.matches(Regex("[0-9.:]*"))) {
                         ip = value
                     } else {
                         Toast.makeText(
                             context,
-                            "IP can contain only digits and dots",
+                            "IP can contain only digits, dots and colon",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().testTag("IpField"),
-                label = { Text("Server IP") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                label = { Text("Server IP:Port") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 trailingIcon = {
@@ -475,11 +493,20 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                         } else if (!ipRegex.matches(ip)) {
                             Toast.makeText(
                                 context,
-                                "Invalid IP address",
+                                "Invalid IP address or port",
                                 Toast.LENGTH_SHORT
                             ).show()
                         } else {
-                            isServerConnected = !isServerConnected
+                            val portPart = ip.substringAfter(":").toInt()
+                            if (portPart !in 1..65535) {
+                                Toast.makeText(
+                                    context,
+                                    "Invalid port",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                isServerConnected = !isServerConnected
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f).testTag("ConnectButton")
@@ -488,7 +515,10 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 }
             }
         } else {
-            Text("Server IP: $localIp", modifier = Modifier.testTag("InternalIp"))
+            Text(
+                "Server IP: ${localIp ?: "Unavailable"}",
+                modifier = Modifier.testTag("InternalIp")
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircleCheckbox(
@@ -546,23 +576,6 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.testTag("ServerState")
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Connected devices: ${connectedDevices.size}",
-                modifier = Modifier.testTag("ConnectedCount")
-            )
-            if (connectedDevices.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyColumn(
-                    modifier = Modifier
-                        .heightIn(max = 100.dp)
-                        .testTag("ConnectedList")
-                ) {
-                    items(connectedDevices) { device ->
-                        Text(device)
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -588,6 +601,26 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.weight(1f).testTag("StartButton")
                 ) {
                     Text(if (isServerRunning) "Close" else "Start")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Connected devices (${connectedDevices.size})")
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 100.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .testTag("ConnectedList")
+                    .padding(8.dp)
+            ) {
+                if (connectedDevices.isNotEmpty()) {
+                    LazyColumn {
+                        items(connectedDevices) { device ->
+                            Text(device)
+                        }
+                    }
                 }
             }
         }

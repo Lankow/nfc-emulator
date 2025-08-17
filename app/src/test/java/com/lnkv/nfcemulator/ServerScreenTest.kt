@@ -34,11 +34,11 @@ class ServerScreenTest {
     }
 
     @Test
-    fun disallowsLetters() {
+    fun disallowsInvalidCharacters() {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("IpClear").performClick()
-        composeTestRule.onNodeWithTag("IpField").performTextInput("192a")
-        composeTestRule.onNodeWithTag("IpField").assertTextEquals("192")
+        composeTestRule.onNodeWithTag("IpField").performTextInput("192.168.0.1:a")
+        composeTestRule.onNodeWithTag("IpField").assertTextEquals("192.168.0.1:")
     }
 
     @Test
@@ -89,6 +89,16 @@ class ServerScreenTest {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("IpClear").performClick()
         composeTestRule.onNodeWithTag("PollingClear").performClick()
+        composeTestRule.onNodeWithTag("ConnectButton").performClick()
+        composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
+    }
+
+    @Test
+    fun connectRequiresPort() {
+        composeTestRule.setContent { ServerScreen() }
+        val field = composeTestRule.onNodeWithTag("IpField")
+        field.performTextClearance()
+        field.performTextInput("192.168.0.1")
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
     }

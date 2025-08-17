@@ -85,6 +85,16 @@ class ServerScreenTest {
     }
 
     @Test
+    fun externalFieldsDisabledWhenConnected() {
+        composeTestRule.setContent { ServerScreen() }
+        composeTestRule.onNodeWithTag("ConnectButton").performClick()
+        composeTestRule.onNodeWithTag("IpField").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("PollingField").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("AutoConnectCheck").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("SaveServer").assertIsNotEnabled()
+    }
+
+    @Test
     fun connectRequiresInputs() {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("IpClear").performClick()
@@ -122,5 +132,16 @@ class ServerScreenTest {
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Running")
         composeTestRule.onNodeWithTag("StartButton").performClick()
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Stopped")
+    }
+
+    @Test
+    fun internalControlsDisabledWhenRunning() {
+        composeTestRule.setContent { ServerScreen() }
+        composeTestRule.onNodeWithTag("InternalToggle").performClick()
+        composeTestRule.onNodeWithTag("StartButton").performClick()
+        composeTestRule.onNodeWithTag("StaticPortCheck").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("AutoStartCheck").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("PortField").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("SaveServer").assertIsNotEnabled()
     }
 }

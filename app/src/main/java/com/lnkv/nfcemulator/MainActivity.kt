@@ -408,6 +408,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
+                enabled = !isServerConnected,
                 trailingIcon = {
                     IconButton(onClick = { ip = "" }, modifier = Modifier.testTag("IpClear")) {
                         Icon(Icons.Filled.Delete, contentDescription = "Clear IP")
@@ -443,6 +444,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 isError = pollingTime.isNotEmpty() && pollingTime.toInt() < 10,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().testTag("PollingField"),
+                enabled = !isServerConnected,
                 trailingIcon = {
                     IconButton(onClick = { pollingTime = "" }, modifier = Modifier.testTag("PollingClear")) {
                         Icon(Icons.Filled.Delete, contentDescription = "Clear Polling Time")
@@ -454,7 +456,8 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 CircleCheckbox(
                     checked = autoConnect,
                     onCheckedChange = { autoConnect = it },
-                    modifier = Modifier.testTag("AutoConnectCheck")
+                    modifier = Modifier.testTag("AutoConnectCheck"),
+                    enabled = !isServerConnected
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Connect Automatically")
@@ -478,6 +481,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                     onClick = {
                         Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
                     },
+                    enabled = !isServerConnected,
                     modifier = Modifier.weight(1f).testTag("SaveServer")
                 ) {
                     Text("Save")
@@ -524,7 +528,8 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 CircleCheckbox(
                     checked = staticPort,
                     onCheckedChange = { staticPort = it },
-                    modifier = Modifier.testTag("StaticPortCheck")
+                    modifier = Modifier.testTag("StaticPortCheck"),
+                    enabled = !isServerRunning
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Use static port")
@@ -546,7 +551,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 label = { Text("Port") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                enabled = staticPort,
+                enabled = staticPort && !isServerRunning,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().testTag("PortField"),
                 trailingIcon = {
@@ -560,7 +565,8 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 CircleCheckbox(
                     checked = autoStart,
                     onCheckedChange = { autoStart = it },
-                    modifier = Modifier.testTag("AutoStartCheck")
+                    modifier = Modifier.testTag("AutoStartCheck"),
+                    enabled = !isServerRunning
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Start Automatically")
@@ -584,6 +590,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                     onClick = {
                         Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
                     },
+                    enabled = !isServerRunning,
                     modifier = Modifier.weight(1f).testTag("SaveServer")
                 ) {
                     Text("Save")
@@ -609,14 +616,14 @@ fun ServerScreen(modifier: Modifier = Modifier) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 100.dp)
+                    .height(150.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .testTag("ConnectedList")
                     .padding(8.dp)
             ) {
                 if (connectedDevices.isNotEmpty()) {
-                    LazyColumn {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(connectedDevices) { device ->
                             Text(device)
                         }

@@ -4,6 +4,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
@@ -89,5 +91,26 @@ class ServerScreenTest {
         composeTestRule.onNodeWithTag("PollingClear").performClick()
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
+    }
+
+    @Test
+    fun staticPortCheckboxEnablesField() {
+        composeTestRule.setContent { ServerScreen() }
+        composeTestRule.onNodeWithTag("InternalToggle").performClick()
+        val portField = composeTestRule.onNodeWithTag("PortField")
+        portField.assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("StaticPortCheck").performClick()
+        portField.assertIsEnabled()
+    }
+
+    @Test
+    fun startButtonTogglesState() {
+        composeTestRule.setContent { ServerScreen() }
+        composeTestRule.onNodeWithTag("InternalToggle").performClick()
+        composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Stopped")
+        composeTestRule.onNodeWithTag("StartButton").performClick()
+        composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Running")
+        composeTestRule.onNodeWithTag("StartButton").performClick()
+        composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Stopped")
     }
 }

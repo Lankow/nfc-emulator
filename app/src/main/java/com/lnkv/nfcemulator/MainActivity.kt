@@ -33,6 +33,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.*
@@ -332,6 +334,12 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     var pollingTime by rememberSaveable { mutableStateOf("100") }
     var autoConnect by rememberSaveable { mutableStateOf(false) }
     var isServerConnected by rememberSaveable { mutableStateOf(false) }
+    var port by rememberSaveable { mutableStateOf("8080") }
+    var staticPort by rememberSaveable { mutableStateOf(false) }
+    var autoStart by rememberSaveable { mutableStateOf(false) }
+    var isServerRunning by rememberSaveable { mutableStateOf(false) }
+    val connectedDevices = remember { mutableStateListOf<String>() }
+    val localIp = remember { "192.168.0.100" }
     val context = LocalContext.current
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")
@@ -363,119 +371,224 @@ fun ServerScreen(modifier: Modifier = Modifier) {
             ) { Text("Internal") }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = ip,
-            onValueChange = { value ->
-                if (value.matches(Regex("[0-9.]*"))) {
-                    ip = value
-                } else {
-                    Toast.makeText(
-                        context,
-                        "IP can contain only digits and dots",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            },
-            modifier = Modifier.fillMaxWidth().testTag("IpField"),
-            label = { Text("Server IP") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            trailingIcon = {
-                IconButton(onClick = { ip = "" }, modifier = Modifier.testTag("IpClear")) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Clear IP")
-                }
-            }
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = pollingTime,
-            onValueChange = { value ->
-                if (value.matches(Regex("\\d*"))) {
-                    if (value.isEmpty() || value.toInt() <= 10000) {
-                        pollingTime = value
+        if (isExternal) {
+            OutlinedTextField(
+                value = ip,
+                onValueChange = { value ->
+                    if (value.matches(Regex("[0-9.]*"))) {
+                        ip = value
                     } else {
                         Toast.makeText(
                             context,
-                            "Max polling time is 10000",
+                            "IP can contain only digits and dots",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
-                } else {
-                    Toast.makeText(
-                        context,
-                        "Polling time can contain only digits",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                },
+                modifier = Modifier.fillMaxWidth().testTag("IpField"),
+                label = { Text("Server IP") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                trailingIcon = {
+                    IconButton(onClick = { ip = "" }, modifier = Modifier.testTag("IpClear")) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Clear IP")
+                    }
                 }
-            },
-            label = { Text("Polling Time [Ms]") },
-            placeholder = { Text("Polling Time [Ms]") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            isError = pollingTime.isNotEmpty() && pollingTime.toInt() < 10,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().testTag("PollingField"),
-            trailingIcon = {
-                IconButton(onClick = { pollingTime = "" }, modifier = Modifier.testTag("PollingClear")) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Clear Polling Time")
-                }
-            }
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CircleCheckbox(
-                checked = autoConnect,
-                onCheckedChange = { autoConnect = it },
-                modifier = Modifier.testTag("AutoConnectCheck")
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Connect Automatically")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            buildAnnotatedString {
-                append("Server State: ")
-                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                    append(if (isServerConnected) "Connected" else "Disconnected")
-                }
-            },
-            modifier = Modifier.testTag("ServerState")
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.weight(1f).testTag("SaveServer")
-            ) {
-                Text("Save")
-            }
-            Button(
-                onClick = {
-                    if (ip.isBlank() || pollingTime.isBlank()) {
-                        Toast.makeText(
-                            context,
-                            "Server IP and Polling Time must be provided",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else if (!ipRegex.matches(ip)) {
-                        Toast.makeText(
-                            context,
-                            "Invalid IP address",
-                            Toast.LENGTH_SHORT
-                        ).show()
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = pollingTime,
+                onValueChange = { value ->
+                    if (value.matches(Regex("\\d*"))) {
+                        if (value.isEmpty() || value.toInt() <= 10000) {
+                            pollingTime = value
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Max polling time is 10000",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     } else {
-                        isServerConnected = !isServerConnected
+                        Toast.makeText(
+                            context,
+                            "Polling time can contain only digits",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 },
-                modifier = Modifier.weight(1f).testTag("ConnectButton")
+                label = { Text("Polling Time [Ms]") },
+                placeholder = { Text("Polling Time [Ms]") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                isError = pollingTime.isNotEmpty() && pollingTime.toInt() < 10,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().testTag("PollingField"),
+                trailingIcon = {
+                    IconButton(onClick = { pollingTime = "" }, modifier = Modifier.testTag("PollingClear")) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Clear Polling Time")
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircleCheckbox(
+                    checked = autoConnect,
+                    onCheckedChange = { autoConnect = it },
+                    modifier = Modifier.testTag("AutoConnectCheck")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Connect Automatically")
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                buildAnnotatedString {
+                    append("Server State: ")
+                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(if (isServerConnected) "Connected" else "Disconnected")
+                    }
+                },
+                modifier = Modifier.testTag("ServerState")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(if (isServerConnected) "Disconnect" else "Connect")
+                Button(
+                    onClick = {
+                        Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1f).testTag("SaveServer")
+                ) {
+                    Text("Save")
+                }
+                Button(
+                    onClick = {
+                        if (ip.isBlank() || pollingTime.isBlank()) {
+                            Toast.makeText(
+                                context,
+                                "Server IP and Polling Time must be provided",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else if (!ipRegex.matches(ip)) {
+                            Toast.makeText(
+                                context,
+                                "Invalid IP address",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            isServerConnected = !isServerConnected
+                        }
+                    },
+                    modifier = Modifier.weight(1f).testTag("ConnectButton")
+                ) {
+                    Text(if (isServerConnected) "Disconnect" else "Connect")
+                }
+            }
+        } else {
+            Text("Server IP: $localIp", modifier = Modifier.testTag("InternalIp"))
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircleCheckbox(
+                    checked = staticPort,
+                    onCheckedChange = { staticPort = it },
+                    modifier = Modifier.testTag("StaticPortCheck")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Use static port")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = port,
+                onValueChange = { value ->
+                    if (value.matches(Regex("\\d*"))) {
+                        port = value
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Port can contain only digits",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                label = { Text("Port") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                enabled = staticPort,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().testTag("PortField"),
+                trailingIcon = {
+                    IconButton(onClick = { port = "" }, modifier = Modifier.testTag("PortClear")) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Clear Port")
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircleCheckbox(
+                    checked = autoStart,
+                    onCheckedChange = { autoStart = it },
+                    modifier = Modifier.testTag("AutoStartCheck")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Start Automatically")
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                buildAnnotatedString {
+                    append("Server State: ")
+                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(if (isServerRunning) "Running" else "Stopped")
+                    }
+                },
+                modifier = Modifier.testTag("ServerState")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Connected devices: ${connectedDevices.size}",
+                modifier = Modifier.testTag("ConnectedCount")
+            )
+            if (connectedDevices.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                LazyColumn(
+                    modifier = Modifier
+                        .heightIn(max = 100.dp)
+                        .testTag("ConnectedList")
+                ) {
+                    items(connectedDevices) { device ->
+                        Text(device)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1f).testTag("SaveServer")
+                ) {
+                    Text("Save")
+                }
+                Button(
+                    onClick = {
+                        isServerRunning = !isServerRunning
+                        if (isServerRunning) {
+                            connectedDevices.clear()
+                            connectedDevices.addAll(listOf("Device1", "Device2"))
+                        } else {
+                            connectedDevices.clear()
+                        }
+                    },
+                    modifier = Modifier.weight(1f).testTag("StartButton")
+                ) {
+                    Text(if (isServerRunning) "Close" else "Start")
+                }
             }
         }
     }

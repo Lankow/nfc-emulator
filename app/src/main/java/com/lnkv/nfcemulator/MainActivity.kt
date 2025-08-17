@@ -278,22 +278,31 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
     var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            itemsIndexed(scenarios) { index, scenario ->
-                val isSelected = selectedIndex == index
-                Text(
-                    scenario.name,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            if (isSelected)
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                            else Color.Transparent
-                        )
-                        .clickable { selectedIndex = index }
-                        .padding(12.dp)
-                        .testTag("ScenarioItem$index")
-                )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .testTag("ScenarioList")
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                itemsIndexed(scenarios) { index, scenario ->
+                    val isSelected = selectedIndex == index
+                    Text(
+                        scenario.name,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (isSelected)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                else Color.Transparent
+                            )
+                            .clickable { selectedIndex = index }
+                            .padding(12.dp)
+                            .testTag("ScenarioItem$index")
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))

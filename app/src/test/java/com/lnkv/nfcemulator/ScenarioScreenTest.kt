@@ -27,4 +27,10 @@ class ScenarioScreenTest {
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
         composeTestRule.onNodeWithText("Scenario 3").assertExists()
     }
+
+    @Test
+    fun scenarioListHasBackgroundContainer() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioList").assertExists()
+    }
 }

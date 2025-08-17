@@ -37,6 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.*
@@ -262,7 +265,11 @@ fun CommunicationScreen(
 
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier) {
-    val scenarios = rememberSaveable {
+    val scenariosSaver = Saver<SnapshotStateList<Scenario>, List<String>>(
+        save = { list -> list.map { it.name } },
+        restore = { names -> names.map(::Scenario).toMutableStateList() }
+    )
+    val scenarios = rememberSaveable(saver = scenariosSaver) {
         mutableStateListOf(
             Scenario("Scenario 1"),
             Scenario("Scenario 2")

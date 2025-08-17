@@ -2,6 +2,8 @@ package com.lnkv.nfcemulator
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
@@ -40,5 +42,17 @@ class ServerScreenTest {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("IpField").performTextInput("192a")
         composeTestRule.onNodeWithTag("IpField").assertTextEquals("192")
+    }
+
+    @Test
+    fun serverTypeSegmentedButtonsWork() {
+        composeTestRule.setContent { ServerScreen() }
+        val external = composeTestRule.onNodeWithTag("ExternalToggle")
+        val internal = composeTestRule.onNodeWithTag("InternalToggle")
+        external.assertIsSelected()
+        internal.assertIsNotSelected()
+        internal.performClick()
+        internal.assertIsSelected()
+        external.assertIsNotSelected()
     }
 }

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.lnkv.nfcemulator
 
 import android.content.ComponentName
@@ -41,10 +43,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.foundation.border
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.MultiChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
@@ -155,44 +157,26 @@ fun CommunicationScreen(
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
-
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        MultiChoiceSegmentedButtonRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .testTag("ServerToggle")
+                .testTag("CommSegments")
         ) {
-            CircleCheckbox(
+            SegmentedButton(
                 checked = showServer,
                 onCheckedChange = { showServer = it },
                 enabled = showNfc || !showServer,
-                modifier = Modifier.testTag("ServerCheck")
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Server Communication", style = MaterialTheme.typography.bodyLarge)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .testTag("NfcToggle")
-        ) {
-            CircleCheckbox(
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                modifier = Modifier.testTag("ServerToggle")
+            ) { Text("Server") }
+            SegmentedButton(
                 checked = showNfc,
                 onCheckedChange = { showNfc = it },
                 enabled = showServer || !showNfc,
-                modifier = Modifier.testTag("NfcCheck")
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("NFC Communication", style = MaterialTheme.typography.bodyLarge)
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                modifier = Modifier.testTag("NfcToggle")
+            ) { Text("NFC") }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -254,10 +238,31 @@ fun CommunicationScreen(
 
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier) {
+    var title by rememberSaveable { mutableStateOf("") }
     var command by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        OutlinedTextField(
+            value = title,
+            onValueChange = { value ->
+                if (value.matches(Regex("[^\\\\/:*?\"<>|]*"))) {
+                    title = value
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Title contains invalid filename characters",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().testTag("TitleField"),
+            label = { Text("Title") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -308,12 +313,32 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun ServerScreen(modifier: Modifier = Modifier) {
+    var isExternal by rememberSaveable { mutableStateOf(true) }
     var ip by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ServerType")
+        ) {
+            SegmentedButton(
+                selected = isExternal,
+                onClick = { isExternal = true },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                modifier = Modifier.testTag("ExternalToggle")
+            ) { Text("External") }
+            SegmentedButton(
+                selected = !isExternal,
+                onClick = { isExternal = false },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                modifier = Modifier.testTag("InternalToggle")
+            ) { Text("Internal") }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -393,50 +418,6 @@ private fun CommunicationLogList(
                     Text(entry.message, color = color)
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun CircleCheckbox(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val scheme = MaterialTheme.colorScheme
-    val disabled = scheme.onSurface.copy(alpha = 0.38f)
-    val background = when {
-        checked && enabled -> scheme.primary
-        checked && !enabled -> scheme.primary.copy(alpha = 0.5f)
-        else -> Color.Transparent
-    }
-    val borderColor = when {
-        !enabled -> disabled
-        checked -> scheme.primary
-        else -> scheme.outline
-    }
-    Box(
-        modifier
-            .size(20.dp)
-            .clip(CircleShape)
-            .background(background)
-            .border(2.dp, borderColor, CircleShape)
-            .toggleable(
-                value = checked,
-                onValueChange = onCheckedChange,
-                enabled = enabled,
-                role = Role.Checkbox
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (checked) {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = null,
-                tint = if (enabled) scheme.onPrimary else disabled,
-                modifier = Modifier.size(12.dp)
-            )
         }
     }
 }

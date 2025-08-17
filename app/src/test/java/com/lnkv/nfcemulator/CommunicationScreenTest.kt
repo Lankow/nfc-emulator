@@ -40,25 +40,11 @@ class CommunicationScreenTest {
         }
 
         val heightBoth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.height
-        composeTestRule.onNodeWithText("NFC Communication").performClick()
+        composeTestRule.onNodeWithTag("NfcToggle").performClick()
         composeTestRule.waitForIdle()
         val heightSingle = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.height
         assertTrue(heightSingle > heightBoth)
         composeTestRule.onNodeWithText("A1B2").assertDoesNotExist()
-    }
-
-    @Test
-    fun toggleRowsFillWidth() {
-        composeTestRule.setContent { CommunicationScreen(emptyList()) }
-
-        val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
-        val expectedWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
-
-        val serverWidth = composeTestRule.onNodeWithTag("ServerToggle").fetchSemanticsNode().size.width
-        val nfcWidth = composeTestRule.onNodeWithTag("NfcToggle").fetchSemanticsNode().size.width
-
-        assertEquals(expectedWidth, serverWidth)
-        assertEquals(expectedWidth, nfcWidth)
     }
 
     @Test
@@ -69,19 +55,6 @@ class CommunicationScreenTest {
         val dividerWidth = composeTestRule.onNodeWithTag("ToggleDivider").fetchSemanticsNode().size.width
 
         assertEquals(logWidth, dividerWidth)
-    }
-
-    @Test
-    fun togglesAlignWithLogs() {
-        composeTestRule.setContent { CommunicationScreen(emptyList()) }
-        val serverToggleX = composeTestRule.onNodeWithTag("ServerToggle").fetchSemanticsNode().positionInRoot.x
-        val serverLogX = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().positionInRoot.x
-
-        val nfcToggleX = composeTestRule.onNodeWithTag("NfcToggle").fetchSemanticsNode().positionInRoot.x
-        val nfcLogX = composeTestRule.onNodeWithTag("NfcLog").fetchSemanticsNode().positionInRoot.x
-
-        assertEquals(serverLogX, serverToggleX)
-        assertEquals(nfcLogX, nfcToggleX)
     }
 
     @Test
@@ -105,5 +78,22 @@ class CommunicationScreenTest {
         assertEquals(expected, clearWidth)
     }
 
+    @Test
+    fun segmentsFillWidth() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+
+        val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
+        val expectedWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
+        val segWidth = composeTestRule.onNodeWithTag("CommSegments").fetchSemanticsNode().size.width
+
+        assertEquals(expectedWidth, segWidth)
+    }
+
+    @Test
+    fun lastSegmentDisables() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+        composeTestRule.onNodeWithTag("NfcToggle").performClick()
+        composeTestRule.onNodeWithTag("ServerToggle").assertIsNotEnabled()
+    }
 }
 

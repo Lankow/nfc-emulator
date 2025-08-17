@@ -22,4 +22,11 @@ class ScenarioScreenTest {
         composeTestRule.onNodeWithTag("CommandClear").performClick()
         composeTestRule.onNodeWithTag("CommandField").assertTextEquals("")
     }
+
+    @Test
+    fun titleRejectsInvalidCharacters() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("TitleField").performTextInput("test/")
+        composeTestRule.onNodeWithTag("TitleField").assertTextEquals("test")
+    }
 }

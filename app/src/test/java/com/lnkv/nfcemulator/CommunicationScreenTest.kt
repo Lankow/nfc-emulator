@@ -104,5 +104,16 @@ class CommunicationScreenTest {
         assertEquals(expected, saveWidth)
         assertEquals(expected, clearWidth)
     }
+
+    @Test
+    fun commandButtonsDisplayedAndClearWorks() {
+        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+        composeTestRule.onNodeWithTag("CommandSend").assertExists()
+        composeTestRule.onNodeWithTag("CommandClear").assertExists()
+
+        composeTestRule.onNodeWithTag("CommandField").performTextInput("AB")
+        composeTestRule.onNodeWithTag("CommandClear").performClick()
+        composeTestRule.onNodeWithTag("CommandField").assertTextEquals("")
+    }
 }
 

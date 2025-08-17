@@ -17,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -37,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
@@ -228,18 +231,43 @@ fun CommunicationScreen(
         ) {
             OutlinedTextField(
                 value = command,
-                onValueChange = { if (it.matches(Regex("[0-9a-fA-F]*"))) command = it },
-                modifier = Modifier.weight(1f),
+                onValueChange = { value ->
+                    if (value.matches(Regex("[0-9a-fA-F]*"))) {
+                        command = value
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Command can contain only hex notation characters",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                modifier = Modifier.weight(1f).testTag("CommandField"),
                 label = { Text("Command") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = {
-                if (command.length % 2 != 0) {
-                    Toast.makeText(context, "Even amount of nibbles is required", Toast.LENGTH_SHORT).show()
-                }
-            }) {
-                Text("Send Command")
+            IconButton(
+                onClick = {
+                    if (command.length % 2 != 0) {
+                        Toast.makeText(
+                            context,
+                            "Even amount of nibbles is required",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                modifier = Modifier.testTag("CommandSend")
+            ) {
+                Icon(Icons.Filled.Send, contentDescription = "Send Command")
+            }
+            IconButton(
+                onClick = { command = "" },
+                modifier = Modifier.testTag("CommandClear")
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = "Clear Command")
             }
         }
         Spacer(modifier = Modifier.height(8.dp))

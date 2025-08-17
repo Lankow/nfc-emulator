@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.List
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -97,6 +98,7 @@ class MainActivity : ComponentActivity() {
  */
 enum class Screen(val label: String) {
     Communication("Communication"),
+    Scenario("Scenario"),
     Server("Server"),
     Settings("Settings")
 }
@@ -117,6 +119,7 @@ fun MainScreen() {
                         icon = {
                             when (screen) {
                                 Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
+                                Screen.Scenario -> Icon(Icons.Filled.List, contentDescription = screen.label)
                                 Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
                                 Screen.Settings -> Icon(Icons.Filled.Settings, contentDescription = screen.label)
                             }
@@ -130,8 +133,10 @@ fun MainScreen() {
         when (currentScreen) {
             Screen.Communication ->
                 CommunicationScreen(logEntries, Modifier.padding(padding))
+            Screen.Scenario ->
+                ScenarioScreen(Modifier.padding(padding))
             Screen.Server ->
-                PlaceholderScreen("Server", Modifier.padding(padding))
+                ServerScreen(Modifier.padding(padding))
             Screen.Settings ->
                 PlaceholderScreen("Settings", Modifier.padding(padding))
         }
@@ -150,7 +155,6 @@ fun CommunicationScreen(
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
-    var command by rememberSaveable { mutableStateOf("") }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -226,6 +230,35 @@ fun CommunicationScreen(
         Spacer(modifier = Modifier.height(8.dp))
         val context = LocalContext.current
         Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    val file = File(context.filesDir, "communication-log.txt")
+                    CommunicationLog.saveToFile(file)
+                },
+                modifier = Modifier.weight(1f).testTag("SaveButton")
+            ) {
+                Text("Save Communication")
+            }
+            Button(
+                onClick = { CommunicationLog.clear() },
+                modifier = Modifier.weight(1f).testTag("ClearButton")
+            ) {
+                Text("Clear Communication")
+            }
+        }
+    }
+}
+
+@Composable
+fun ScenarioScreen(modifier: Modifier = Modifier) {
+    var command by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -270,25 +303,53 @@ fun CommunicationScreen(
                 Icon(Icons.Filled.Delete, contentDescription = "Clear Command")
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+fun ServerScreen(modifier: Modifier = Modifier) {
+    var ip by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+    val ipRegex =
+        Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Button(
-                onClick = {
-                    val file = File(context.filesDir, "communication-log.txt")
-                    CommunicationLog.saveToFile(file)
+            OutlinedTextField(
+                value = ip,
+                onValueChange = { value ->
+                    if (value.matches(Regex("[0-9.]*"))) {
+                        ip = value
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "IP can contain only digits and dots",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 },
-                modifier = Modifier.weight(1f).testTag("SaveButton")
+                modifier = Modifier.weight(1f).testTag("IpField"),
+                label = { Text("Server IP") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = { },
+                enabled = ipRegex.matches(ip),
+                modifier = Modifier.testTag("IpApply")
             ) {
-                Text("Save Communication")
+                Icon(Icons.Filled.Check, contentDescription = "Apply IP")
             }
-            Button(
-                onClick = { CommunicationLog.clear() },
-                modifier = Modifier.weight(1f).testTag("ClearButton")
+            IconButton(
+                onClick = { ip = "" },
+                modifier = Modifier.testTag("IpClear")
             ) {
-                Text("Clear Communication")
+                Icon(Icons.Filled.Delete, contentDescription = "Clear IP")
             }
         }
     }

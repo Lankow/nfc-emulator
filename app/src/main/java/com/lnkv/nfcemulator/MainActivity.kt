@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
  * Navigation targets displayed in the bottom bar.
  */
 enum class Screen(val label: String) {
-    Communication("Communication"),
+    Communication("Comm"),
     Scenario("Scenario"),
     Server("Server"),
     Settings("Settings")

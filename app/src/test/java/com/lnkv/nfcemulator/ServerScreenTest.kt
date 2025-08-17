@@ -4,6 +4,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
@@ -54,5 +56,25 @@ class ServerScreenTest {
         internal.performClick()
         internal.assertIsSelected()
         external.assertIsNotSelected()
+    }
+
+    @Test
+    fun pollingFieldRestrictsInput() {
+        composeTestRule.setContent { ServerScreen() }
+        val field = composeTestRule.onNodeWithTag("PollingField")
+        field.performTextInput("123a")
+        field.assertTextEquals("123")
+        field.performTextClearance()
+        field.performTextInput("10001")
+        field.assertTextEquals("1000")
+    }
+
+    @Test
+    fun autoConnectCheckboxToggles() {
+        composeTestRule.setContent { ServerScreen() }
+        val check = composeTestRule.onNodeWithTag("AutoConnectCheck")
+        check.assertIsOff()
+        check.performClick()
+        check.assertIsOn()
     }
 }

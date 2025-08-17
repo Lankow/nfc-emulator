@@ -40,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
+import androidx.compose.foundation.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Delete
@@ -54,6 +57,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import java.io.File
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
@@ -158,6 +162,10 @@ fun CommunicationScreen(
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        val segColors = SegmentedButtonDefaults.colors(
+            activeContainerColor = MaterialTheme.colorScheme.primary,
+            activeContentColor = MaterialTheme.colorScheme.onPrimary
+        )
         MultiChoiceSegmentedButtonRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -168,6 +176,7 @@ fun CommunicationScreen(
                 onCheckedChange = { showServer = it },
                 enabled = showNfc || !showServer,
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                colors = segColors,
                 modifier = Modifier.testTag("ServerToggle")
             ) { Text("Server") }
             SegmentedButton(
@@ -175,6 +184,7 @@ fun CommunicationScreen(
                 onCheckedChange = { showNfc = it },
                 enabled = showServer || !showNfc,
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                colors = segColors,
                 modifier = Modifier.testTag("NfcToggle")
             ) { Text("NFC") }
         }
@@ -315,9 +325,16 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
 fun ServerScreen(modifier: Modifier = Modifier) {
     var isExternal by rememberSaveable { mutableStateOf(true) }
     var ip by rememberSaveable { mutableStateOf("") }
+    var pollingTime by rememberSaveable { mutableStateOf("") }
+    var autoConnect by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")
+
+    val segColors = SegmentedButtonDefaults.colors(
+        activeContainerColor = MaterialTheme.colorScheme.primary,
+        activeContentColor = MaterialTheme.colorScheme.onPrimary
+    )
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         SingleChoiceSegmentedButtonRow(
@@ -329,12 +346,14 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 selected = isExternal,
                 onClick = { isExternal = true },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                colors = segColors,
                 modifier = Modifier.testTag("ExternalToggle")
             ) { Text("External") }
             SegmentedButton(
                 selected = !isExternal,
                 onClick = { isExternal = false },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                colors = segColors,
                 modifier = Modifier.testTag("InternalToggle")
             ) { Text("Internal") }
         }
@@ -376,6 +395,80 @@ fun ServerScreen(modifier: Modifier = Modifier) {
             ) {
                 Icon(Icons.Filled.Delete, contentDescription = "Clear IP")
             }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = pollingTime,
+            onValueChange = { value ->
+                if (value.matches(Regex("\\d*"))) {
+                    if (value.isEmpty() || value.toInt() <= 10000) {
+                        pollingTime = value
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Max polling time is 10000",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Polling time can contain only digits",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            },
+            label = { Text("Polling Time [Ms]") },
+            placeholder = { Text("Polling Time [Ms]") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            isError = pollingTime.isNotEmpty() && pollingTime.toInt() < 10,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().testTag("PollingField")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircleCheckbox(
+                checked = autoConnect,
+                onCheckedChange = { autoConnect = it },
+                modifier = Modifier.testTag("AutoConnectCheck")
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Connect Automatically")
+        }
+    }
+}
+
+@Composable
+fun CircleCheckbox(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    val background = if (checked) MaterialTheme.colorScheme.primary else Color.Transparent
+    Box(
+        modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(background)
+            .border(2.dp, borderColor, CircleShape)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Checkbox,
+                onValueChange = onCheckedChange
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }

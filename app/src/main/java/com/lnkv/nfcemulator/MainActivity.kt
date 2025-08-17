@@ -44,11 +44,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
@@ -58,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -119,6 +120,8 @@ enum class Screen(val label: String) {
     Server("Server"),
     Settings("Settings")
 }
+
+data class Scenario(val name: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -259,74 +262,73 @@ fun CommunicationScreen(
 
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier) {
-    var title by rememberSaveable { mutableStateOf("") }
-    var command by rememberSaveable { mutableStateOf("") }
-    val context = LocalContext.current
+    val scenarios = rememberSaveable {
+        mutableStateListOf(
+            Scenario("Scenario 1"),
+            Scenario("Scenario 2")
+        )
+    }
+    var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        OutlinedTextField(
-            value = title,
-            onValueChange = { value ->
-                if (value.matches(Regex("[^\\\\/:*?\"<>|]*"))) {
-                    title = value
-                } else {
-                    Toast.makeText(
-                        context,
-                        "Title contains invalid filename characters",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            },
-            modifier = Modifier.fillMaxWidth().testTag("TitleField"),
-            label = { Text("Title") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp)
-        )
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            itemsIndexed(scenarios) { index, scenario ->
+                val isSelected = selectedIndex == index
+                Text(
+                    scenario.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (isSelected)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            else Color.Transparent
+                        )
+                        .clickable { selectedIndex = index }
+                        .padding(12.dp)
+                        .testTag("ScenarioItem$index")
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedTextField(
-                value = command,
-                onValueChange = { value ->
-                    if (value.matches(Regex("[0-9a-fA-F]*"))) {
-                        command = value
-                    } else {
-                        Toast.makeText(
-                            context,
-                            "Command can contain only hex notation characters",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                },
-                modifier = Modifier.weight(1f).testTag("CommandField"),
-                label = { Text("Command") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
+            Button(
                 onClick = {
-                    if (command.length % 2 != 0) {
-                        Toast.makeText(
-                            context,
-                            "Even amount of nibbles is required",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    scenarios.add(Scenario("Scenario ${scenarios.size + 1}"))
                 },
-                modifier = Modifier.testTag("CommandSend")
+                modifier = Modifier.weight(1f).testTag("ScenarioNew")
             ) {
-                Icon(Icons.Filled.Send, contentDescription = "Send Command")
+                Text("New")
             }
-            IconButton(
-                onClick = { command = "" },
-                modifier = Modifier.testTag("CommandClear")
+            Button(
+                onClick = { /* TODO edit scenario */ },
+                enabled = selectedIndex != null,
+                modifier = Modifier.weight(1f).testTag("ScenarioEdit")
             ) {
-                Icon(Icons.Filled.Delete, contentDescription = "Clear Command")
+                Text("Edit")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { /* TODO save scenarios */ },
+                modifier = Modifier.weight(1f).testTag("ScenarioSave")
+            ) {
+                Text("Save")
+            }
+            Button(
+                onClick = {
+                    scenarios.clear()
+                    selectedIndex = null
+                },
+                modifier = Modifier.weight(1f).testTag("ScenarioClear")
+            ) {
+                Text("Clear")
             }
         }
     }

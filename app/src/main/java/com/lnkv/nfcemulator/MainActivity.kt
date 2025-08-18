@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,9 +57,12 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.viewinterop.AndroidView
+import android.widget.Spinner
+import android.widget.ArrayAdapter
+import android.widget.AdapterView
+import android.view.View
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
@@ -143,34 +145,31 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        var triggerExpanded by remember { mutableStateOf(false) }
-        Box(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = trigger.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Trigger") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Show triggers") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { triggerExpanded = true }
-            )
-            DropdownMenu(
-                expanded = triggerExpanded,
-                onDismissRequest = { triggerExpanded = false },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                StepTrigger.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label) },
-                        onClick = {
-                            trigger = option
-                            triggerExpanded = false
-                        }
+        Text("Trigger")
+        AndroidView(
+            factory = { context ->
+                Spinner(context).apply {
+                    adapter = ArrayAdapter(
+                        context,
+                        android.R.layout.simple_spinner_dropdown_item,
+                        StepTrigger.entries.map { it.label }
                     )
+                    setSelection(StepTrigger.entries.indexOf(trigger))
+                    onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                        override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                            trigger = StepTrigger.entries[position]
+                        }
+
+                        override fun onNothingSelected(parent: AdapterView<*>) {}
+                    }
                 }
-            }
-        }
+            },
+            update = { spinner ->
+                val index = StepTrigger.entries.indexOf(trigger)
+                if (spinner.selectedItemPosition != index) spinner.setSelection(index)
+            },
+            modifier = Modifier.fillMaxWidth().testTag("TriggerSpinner")
+        )
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier
@@ -179,34 +178,31 @@ fun StepEditor(
                 .testTag("StepOptionDivider")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        var actionExpanded by remember { mutableStateOf(false) }
-        Box(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = action.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Action") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Show actions") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { actionExpanded = true }
-            )
-            DropdownMenu(
-                expanded = actionExpanded,
-                onDismissRequest = { actionExpanded = false },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                StepAction.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label) },
-                        onClick = {
-                            action = option
-                            actionExpanded = false
-                        }
+        Text("Action")
+        AndroidView(
+            factory = { context ->
+                Spinner(context).apply {
+                    adapter = ArrayAdapter(
+                        context,
+                        android.R.layout.simple_spinner_dropdown_item,
+                        StepAction.entries.map { it.label }
                     )
+                    setSelection(StepAction.entries.indexOf(action))
+                    onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                        override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                            action = StepAction.entries[position]
+                        }
+
+                        override fun onNothingSelected(parent: AdapterView<*>) {}
+                    }
                 }
-            }
-        }
+            },
+            update = { spinner ->
+                val index = StepAction.entries.indexOf(action)
+                if (spinner.selectedItemPosition != index) spinner.setSelection(index)
+            },
+            modifier = Modifier.fillMaxWidth().testTag("ActionSpinner")
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),

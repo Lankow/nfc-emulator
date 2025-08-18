@@ -22,20 +22,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenu
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.menuAnchor
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,7 +62,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -86,7 +82,7 @@ import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
 /**
  * Main activity hosting a bottom navigation menu that switches between
- * Communication, Server, and Settings screens.
+ * Communication, Scenario, and Server screens.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var cardEmulation: CardEmulation
@@ -149,16 +145,23 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        ExposedDropdownMenuBox(expanded = triggerExpanded, onExpandedChange = { triggerExpanded = !triggerExpanded }) {
+        Box {
             OutlinedTextField(
                 value = trigger.label,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Trigger") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = triggerExpanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth().testTag("TriggerDropdown")
+                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("TriggerDropdown")
+                    .clickable { triggerExpanded = true }
             )
-            ExposedDropdownMenu(expanded = triggerExpanded, onDismissRequest = { triggerExpanded = false }) {
+            DropdownMenu(
+                expanded = triggerExpanded,
+                onDismissRequest = { triggerExpanded = false },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 StepTrigger.entries.forEach { option ->
                     DropdownMenuItem(text = { Text(option.label) }, onClick = {
                         trigger = option
@@ -168,16 +171,23 @@ fun StepEditor(
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        ExposedDropdownMenuBox(expanded = actionExpanded, onExpandedChange = { actionExpanded = !actionExpanded }) {
+        Box {
             OutlinedTextField(
                 value = action.label,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Action") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = actionExpanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth().testTag("ActionDropdown")
+                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("ActionDropdown")
+                    .clickable { actionExpanded = true }
             )
-            ExposedDropdownMenu(expanded = actionExpanded, onDismissRequest = { actionExpanded = false }) {
+            DropdownMenu(
+                expanded = actionExpanded,
+                onDismissRequest = { actionExpanded = false },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 StepAction.entries.forEach { option ->
                     DropdownMenuItem(text = { Text(option.label) }, onClick = {
                         action = option
@@ -212,10 +222,9 @@ fun StepEditor(
  * Navigation targets displayed in the bottom bar.
  */
 enum class Screen(val label: String) {
-    Communication("Comm"),
+    Communication("Communication"),
     Scenario("Scenario"),
-    Server("Server"),
-    Settings("Settings")
+    Server("Server")
 }
 
 enum class StepTrigger(val label: String) {
@@ -247,34 +256,31 @@ fun MainScreen() {
     androidx.compose.material3.Scaffold(
         bottomBar = {
             NavigationBar {
-                Screen.entries.forEach { screen ->
-                    NavigationBarItem(
-                        selected = currentScreen == screen,
-                        onClick = { currentScreen = screen },
-                        icon = {
-                            when (screen) {
-                                Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
-                                Screen.Scenario -> Icon(Icons.Filled.List, contentDescription = screen.label)
-                                Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
-                                Screen.Settings -> Icon(Icons.Filled.Settings, contentDescription = screen.label)
-                            }
-                        },
-                        label = { Text(screen.label) }
-                    )
-                }
+                  Screen.entries.forEach { screen ->
+                      NavigationBarItem(
+                          selected = currentScreen == screen,
+                          onClick = { currentScreen = screen },
+                          icon = {
+                              when (screen) {
+                                  Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
+                                  Screen.Scenario -> Icon(Icons.Filled.List, contentDescription = screen.label)
+                                  Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
+                              }
+                          },
+                          label = { Text(screen.label) }
+                      )
+                  }
             }
         }
     ) { padding ->
-        when (currentScreen) {
-            Screen.Communication ->
-                CommunicationScreen(logEntries, Modifier.padding(padding))
-            Screen.Scenario ->
-                ScenarioScreen(Modifier.padding(padding))
-            Screen.Server ->
-                ServerScreen(Modifier.padding(padding))
-            Screen.Settings ->
-                PlaceholderScreen("Settings", Modifier.padding(padding))
-        }
+          when (currentScreen) {
+              Screen.Communication ->
+                  CommunicationScreen(logEntries, Modifier.padding(padding))
+              Screen.Scenario ->
+                  ScenarioScreen(Modifier.padding(padding))
+              Screen.Server ->
+                  ServerScreen(Modifier.padding(padding))
+          }
     }
 }
 
@@ -972,17 +978,6 @@ fun CircleCheckbox(
         }
     }
 }
-
-/**
- * Simple placeholder used for sections that are not yet implemented.
- */
-@Composable
-fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Center) {
-        Text(text)
-    }
-}
-
 /**
  * Renders a labeled list of communication log [entries]. Each list item is
  * colored red for requests and green for responses.

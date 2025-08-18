@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertExists
 import org.junit.Rule
 import org.junit.Test
 
@@ -22,10 +23,10 @@ class ScenarioScreenTest {
     }
 
     @Test
-    fun newButtonAddsScenario() {
+    fun newButtonOpensEditor() {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
-        composeTestRule.onNodeWithText("Scenario 3").assertExists()
+        composeTestRule.onNodeWithTag("ScenarioTitle").assertExists()
     }
 
     @Test

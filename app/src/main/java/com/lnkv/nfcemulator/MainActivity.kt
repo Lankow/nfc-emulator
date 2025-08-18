@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,6 +58,7 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
@@ -124,7 +126,7 @@ enum class Screen(val label: String) {
     Settings("Settings")
 }
 
-data class Scenario(val name: String)
+data class Scenario(var name: String, val steps: SnapshotStateList<String> = mutableStateListOf())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -266,8 +268,17 @@ fun CommunicationScreen(
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier) {
     val scenariosSaver = Saver<SnapshotStateList<Scenario>, List<String>>(
-        save = { list -> list.map { it.name } },
-        restore = { names -> names.map(::Scenario).toMutableStateList() }
+        save = { list -> list.map { it.name + "|" + it.steps.joinToString(",") } },
+        restore = { serialized ->
+            serialized.map { line ->
+                val parts = line.split("|", limit = 2)
+                val name = parts[0]
+                val steps = if (parts.size > 1 && parts[1].isNotEmpty())
+                    parts[1].split(",").toMutableStateList()
+                else mutableStateListOf()
+                Scenario(name, steps)
+            }.toMutableStateList()
+        }
     )
     val scenarios = rememberSaveable(saver = scenariosSaver) {
         mutableStateListOf(
@@ -276,21 +287,146 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
         )
     }
     var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showClearDialog by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    if (editingIndex != null) {
+        val isNew = editingIndex == -1
+        val workingScenario = remember(editingIndex) {
+            if (isNew) Scenario("") else {
+                val original = scenarios[editingIndex!!]
+                Scenario(original.name, original.steps.toMutableStateList())
+            }
+        }
+        ScenarioEditor(
+            scenario = workingScenario,
+            onSave = { updated ->
+                if (isNew) scenarios.add(updated)
+                else scenarios[editingIndex!!] = updated
+                editingIndex = null
+                selectedIndex = null
+            },
+            onCancel = { editingIndex = null }
+        )
+    } else {
+        Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .testTag("ScenarioList")
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(scenarios) { index, scenario ->
+                        val isSelected = selectedIndex == index
+                        Text(
+                            scenario.name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isSelected)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                    else Color.Transparent
+                                )
+                                .clickable { selectedIndex = index }
+                                .padding(12.dp)
+                                .testTag("ScenarioItem$index")
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { editingIndex = -1 },
+                    modifier = Modifier.weight(1f).testTag("ScenarioNew")
+                ) { Text("New") }
+                Button(
+                    onClick = { editingIndex = selectedIndex },
+                    enabled = selectedIndex != null,
+                    modifier = Modifier.weight(1f).testTag("ScenarioEdit")
+                ) { Text("Edit") }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { /* TODO save scenarios */ },
+                    modifier = Modifier.weight(1f).testTag("ScenarioSave")
+                ) { Text("Save") }
+                Button(
+                    onClick = { showClearDialog = true },
+                    modifier = Modifier.weight(1f).testTag("ScenarioClear")
+                ) { Text("Clear") }
+            }
+        }
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                confirmButton = {
+                    Button(onClick = {
+                        scenarios.clear()
+                        selectedIndex = null
+                        showClearDialog = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    Button(onClick = { showClearDialog = false }) { Text("Cancel") }
+                },
+                text = { Text("Clear all scenarios?") }
+            )
+        }
+    }
+}
+
+@Composable
+fun ScenarioEditor(
+    scenario: Scenario,
+    onSave: (Scenario) -> Unit,
+    onCancel: () -> Unit
+) {
+    var title by remember { mutableStateOf(scenario.name) }
+    val steps = scenario.steps
+    var selectedStep by remember { mutableStateOf<Int?>(null) }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var editStepIndex by remember { mutableStateOf<Int?>(null) }
+    var stepText by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        OutlinedTextField(
+            value = title,
+            onValueChange = { input ->
+                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) title = input
+            },
+            label = { Text("Scenario Title") },
+            trailingIcon = {
+                IconButton(onClick = { title = "" }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Clear title")
+                }
+            },
+            modifier = Modifier.fillMaxWidth().testTag("ScenarioTitle")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .testTag("ScenarioList")
+                .testTag("StepList")
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(scenarios) { index, scenario ->
-                    val isSelected = selectedIndex == index
+                itemsIndexed(steps) { index, step ->
+                    val isSelected = selectedStep == index
                     Text(
-                        scenario.name,
+                        step,
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
@@ -298,9 +434,9 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                                     MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                 else Color.Transparent
                             )
-                            .clickable { selectedIndex = index }
+                            .clickable { selectedStep = index }
                             .padding(12.dp)
-                            .testTag("ScenarioItem$index")
+                            .testTag("StepItem$index")
                     )
                 }
             }
@@ -311,20 +447,21 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = {
-                    scenarios.add(Scenario("Scenario ${scenarios.size + 1}"))
-                },
-                modifier = Modifier.weight(1f).testTag("ScenarioNew")
-            ) {
-                Text("New")
-            }
+                onClick = { steps.add("Step ${steps.size + 1}") },
+                modifier = Modifier.weight(1f).testTag("StepNew")
+            ) { Text("New Step") }
             Button(
-                onClick = { /* TODO edit scenario */ },
-                enabled = selectedIndex != null,
-                modifier = Modifier.weight(1f).testTag("ScenarioEdit")
-            ) {
-                Text("Edit")
-            }
+                onClick = {
+                    editStepIndex = selectedStep
+                    if (editStepIndex != null) stepText = steps[editStepIndex!!]
+                },
+                enabled = selectedStep != null,
+                modifier = Modifier.weight(1f).testTag("StepEdit")
+            ) { Text("Edit Step") }
+            Button(
+                onClick = { showClearDialog = true },
+                modifier = Modifier.weight(1f).testTag("StepClear")
+            ) { Text("Clear Steps") }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row(
@@ -332,21 +469,54 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { /* TODO save scenarios */ },
-                modifier = Modifier.weight(1f).testTag("ScenarioSave")
-            ) {
-                Text("Save")
-            }
-            Button(
                 onClick = {
-                    scenarios.clear()
-                    selectedIndex = null
+                    scenario.name = title
+                    onSave(scenario)
                 },
-                modifier = Modifier.weight(1f).testTag("ScenarioClear")
-            ) {
-                Text("Clear")
-            }
+                modifier = Modifier.weight(1f).testTag("ScenarioSave")
+            ) { Text("Save") }
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f).testTag("ScenarioCancel")
+            ) { Text("Cancel") }
         }
+    }
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            confirmButton = {
+                Button(onClick = {
+                    steps.clear()
+                    selectedStep = null
+                    showClearDialog = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                Button(onClick = { showClearDialog = false }) { Text("Cancel") }
+            },
+            text = { Text("Clear all steps?") }
+        )
+    }
+    if (editStepIndex != null) {
+        AlertDialog(
+            onDismissRequest = { editStepIndex = null },
+            confirmButton = {
+                Button(onClick = {
+                    steps[editStepIndex!!] = stepText
+                    editStepIndex = null
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                Button(onClick = { editStepIndex = null }) { Text("Cancel") }
+            },
+            text = {
+                OutlinedTextField(
+                    value = stepText,
+                    onValueChange = { stepText = it },
+                    label = { Text("Step") }
+                )
+            }
+        )
     }
 }
 

@@ -60,7 +60,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.AlertDialog
@@ -156,7 +156,7 @@ fun StepEditor(
                 readOnly = true,
                 label = { Text("Trigger") },
                 trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
-                colors = TextFieldDefaults.outlinedTextFieldColors(
+                colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),
@@ -202,7 +202,7 @@ fun StepEditor(
                 readOnly = true,
                 label = { Text("Action") },
                 trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
-                colors = TextFieldDefaults.outlinedTextFieldColors(
+                colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),

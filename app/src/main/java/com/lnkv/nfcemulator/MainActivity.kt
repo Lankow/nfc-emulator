@@ -62,6 +62,7 @@ import android.widget.Spinner
 import android.widget.ArrayAdapter
 import android.widget.AdapterView
 import android.view.View
+import android.view.ViewGroup
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.testTag
@@ -149,6 +150,10 @@ fun StepEditor(
         AndroidView(
             factory = { context ->
                 Spinner(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
                     adapter = ArrayAdapter(
                         context,
                         android.R.layout.simple_spinner_dropdown_item,
@@ -182,6 +187,10 @@ fun StepEditor(
         AndroidView(
             factory = { context ->
                 Spinner(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
                     adapter = ArrayAdapter(
                         context,
                         android.R.layout.simple_spinner_dropdown_item,

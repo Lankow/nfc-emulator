@@ -148,7 +148,7 @@ fun <T> EnumSpinner(
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val tv = super.getView(position, convertView, parent) as TextView
                 tv.setTextColor(colors.onSurface.toArgb())
-                tv.setPadding(dpToPx(12f), dpToPx(8f), dpToPx(12f), dpToPx(8f))
+                tv.setPadding(dpToPx(16f), dpToPx(16f), dpToPx(16f), dpToPx(16f))
                 return tv
             }
 
@@ -161,9 +161,10 @@ fun <T> EnumSpinner(
                 val drawable = GradientDrawable().apply {
                     setColor(bgColor)
                     setStroke(dpToPx(1f), colors.outline.toArgb())
+                    cornerRadius = dpToPx(4f).toFloat()
                 }
                 tv.background = drawable
-                tv.setPadding(dpToPx(12f), dpToPx(8f), dpToPx(12f), dpToPx(8f))
+                tv.setPadding(dpToPx(16f), dpToPx(16f), dpToPx(16f), dpToPx(16f))
                 tv.setOnTouchListener { v, event ->
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
@@ -186,7 +187,6 @@ fun <T> EnumSpinner(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, colors.outline, RoundedCornerShape(4.dp))
-                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             AndroidView(
                 factory = { ctx ->
@@ -209,6 +209,7 @@ fun <T> EnumSpinner(
                         val popupBg = GradientDrawable().apply {
                             setColor(colors.surface.toArgb())
                             setStroke(dpToPx(1f), colors.outline.toArgb())
+                            cornerRadius = dpToPx(4f).toFloat()
                         }
                         setPopupBackgroundDrawable(popupBg)
                         doOnLayout { dropDownWidth = it.width }

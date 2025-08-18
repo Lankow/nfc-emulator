@@ -30,6 +30,14 @@ class ScenarioScreenTest {
     }
 
     @Test
+    fun newStepOpensStepEditor() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("StepNew").performClick()
+        composeTestRule.onNodeWithTag("StepName").assertExists()
+    }
+
+    @Test
     fun scenarioListHasBackgroundContainer() {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioList").assertExists()

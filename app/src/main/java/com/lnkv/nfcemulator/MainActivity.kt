@@ -22,6 +22,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.menuAnchor
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -116,6 +121,93 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Composable
+fun StepEditor(
+    modifier: Modifier = Modifier,
+    step: Step,
+    onSave: (Step) -> Unit,
+    onCancel: () -> Unit
+) {
+    var name by remember { mutableStateOf(step.name) }
+    var trigger by remember { mutableStateOf(step.trigger) }
+    var action by remember { mutableStateOf(step.action) }
+    var triggerExpanded by remember { mutableStateOf(false) }
+    var actionExpanded by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { input ->
+                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) name = input
+            },
+            label = { Text("Step Name") },
+            trailingIcon = {
+                IconButton(onClick = { name = "" }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Clear step name")
+                }
+            },
+            modifier = Modifier.fillMaxWidth().testTag("StepName")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        ExposedDropdownMenuBox(expanded = triggerExpanded, onExpandedChange = { triggerExpanded = !triggerExpanded }) {
+            OutlinedTextField(
+                value = trigger.label,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Trigger") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = triggerExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth().testTag("TriggerDropdown")
+            )
+            ExposedDropdownMenu(expanded = triggerExpanded, onDismissRequest = { triggerExpanded = false }) {
+                StepTrigger.entries.forEach { option ->
+                    DropdownMenuItem(text = { Text(option.label) }, onClick = {
+                        trigger = option
+                        triggerExpanded = false
+                    })
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        ExposedDropdownMenuBox(expanded = actionExpanded, onExpandedChange = { actionExpanded = !actionExpanded }) {
+            OutlinedTextField(
+                value = action.label,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Action") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = actionExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth().testTag("ActionDropdown")
+            )
+            ExposedDropdownMenu(expanded = actionExpanded, onDismissRequest = { actionExpanded = false }) {
+                StepAction.entries.forEach { option ->
+                    DropdownMenuItem(text = { Text(option.label) }, onClick = {
+                        action = option
+                        actionExpanded = false
+                    })
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    step.name = name
+                    step.trigger = trigger
+                    step.action = action
+                    onSave(step)
+                },
+                modifier = Modifier.weight(1f).testTag("StepSave")
+            ) { Text("Save") }
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f).testTag("StepCancel")
+            ) { Text("Cancel") }
+        }
+    }
+}
+
 /**
  * Navigation targets displayed in the bottom bar.
  */
@@ -126,7 +218,25 @@ enum class Screen(val label: String) {
     Settings("Settings")
 }
 
-data class Scenario(var name: String, val steps: SnapshotStateList<String> = mutableStateListOf())
+enum class StepTrigger(val label: String) {
+    ServerRequest("Server Request"),
+    NfcRequest("Nfc Request"),
+    PreviousStep("Previous Step")
+}
+
+enum class StepAction(val label: String) {
+    ServerResponse("Server Response"),
+    NfcResponse("Nfc Response"),
+    Silenced("Silenced")
+}
+
+data class Step(
+    var name: String,
+    var trigger: StepTrigger = StepTrigger.ServerRequest,
+    var action: StepAction = StepAction.ServerResponse
+)
+
+data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -268,14 +378,27 @@ fun CommunicationScreen(
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier) {
     val scenariosSaver = Saver<SnapshotStateList<Scenario>, List<String>>(
-        save = { list -> list.map { it.name + "|" + it.steps.joinToString(",") } },
+        save = { list ->
+            list.map { scenario ->
+                val stepString = scenario.steps.joinToString(",") { step ->
+                    listOf(step.name, step.trigger.name, step.action.name).joinToString(";")
+                }
+                scenario.name + "|" + stepString
+            }
+        },
         restore = { serialized ->
             serialized.map { line ->
                 val parts = line.split("|", limit = 2)
                 val name = parts[0]
-                val steps = if (parts.size > 1 && parts[1].isNotEmpty())
-                    parts[1].split(",").toMutableStateList()
-                else mutableStateListOf()
+                val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
+                    parts[1].split(",").map { stepStr ->
+                        val sp = stepStr.split(";")
+                        val stepName = sp.getOrElse(0) { "" }
+                        val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
+                        val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
+                        Step(stepName, StepTrigger.valueOf(trigger), StepAction.valueOf(action))
+                    }.toMutableStateList()
+                } else mutableStateListOf()
                 Scenario(name, steps)
             }.toMutableStateList()
         }
@@ -398,127 +521,119 @@ fun ScenarioEditor(
     val steps = scenario.steps
     var selectedStep by remember { mutableStateOf<Int?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
-    var editStepIndex by remember { mutableStateOf<Int?>(null) }
-    var stepText by remember { mutableStateOf("") }
+    var editingStepIndex by remember { mutableStateOf<Int?>(null) }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        OutlinedTextField(
-            value = title,
-            onValueChange = { input ->
-                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) title = input
+    if (editingStepIndex != null) {
+        val isNewStep = editingStepIndex == -1
+        val workingStep = remember(editingStepIndex) {
+            if (isNewStep) Step("") else steps[editingStepIndex!!].copy()
+        }
+        StepEditor(
+            modifier = modifier,
+            step = workingStep,
+            onSave = { updated ->
+                if (isNewStep) steps.add(updated) else steps[editingStepIndex!!] = updated
+                editingStepIndex = null
+                selectedStep = null
             },
-            label = { Text("Scenario Title") },
-            trailingIcon = {
-                IconButton(onClick = { title = "" }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Clear title")
-                }
-            },
-            modifier = Modifier.fillMaxWidth().testTag("ScenarioTitle")
+            onCancel = { editingStepIndex = null }
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .testTag("StepList")
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(steps) { index, step ->
-                    val isSelected = selectedStep == index
-                    Text(
-                        step,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                if (isSelected)
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                else Color.Transparent
-                            )
-                            .clickable { selectedStep = index }
-                            .padding(12.dp)
-                            .testTag("StepItem$index")
-                    )
+    } else {
+        Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { input ->
+                    if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) title = input
+                },
+                label = { Text("Scenario Title") },
+                trailingIcon = {
+                    IconButton(onClick = { title = "" }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Clear title")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().testTag("ScenarioTitle")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .testTag("StepList")
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(steps) { index, step ->
+                        val isSelected = selectedStep == index
+                        Text(
+                            step.name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isSelected)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                    else Color.Transparent
+                                )
+                                .clickable { selectedStep = index }
+                                .padding(12.dp)
+                                .testTag("StepItem$index")
+                        )
+                    }
                 }
             }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { steps.add("Step ${steps.size + 1}") },
-                modifier = Modifier.weight(1f).testTag("StepNew")
-            ) { Text("New Step") }
-            Button(
-                onClick = {
-                    editStepIndex = selectedStep
-                    if (editStepIndex != null) stepText = steps[editStepIndex!!]
-                },
-                enabled = selectedStep != null,
-                modifier = Modifier.weight(1f).testTag("StepEdit")
-            ) { Text("Edit Step") }
-            Button(
-                onClick = { showClearDialog = true },
-                modifier = Modifier.weight(1f).testTag("StepClear")
-            ) { Text("Clear Steps") }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    scenario.name = title
-                    onSave(scenario)
-                },
-                modifier = Modifier.weight(1f).testTag("ScenarioSave")
-            ) { Text("Save") }
-            Button(
-                onClick = onCancel,
-                modifier = Modifier.weight(1f).testTag("ScenarioCancel")
-            ) { Text("Cancel") }
-        }
-    }
-    if (showClearDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDialog = false },
-            confirmButton = {
-                Button(onClick = {
-                    steps.clear()
-                    selectedStep = null
-                    showClearDialog = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                Button(onClick = { showClearDialog = false }) { Text("Cancel") }
-            },
-            text = { Text("Clear all steps?") }
-        )
-    }
-    if (editStepIndex != null) {
-        AlertDialog(
-            onDismissRequest = { editStepIndex = null },
-            confirmButton = {
-                Button(onClick = {
-                    steps[editStepIndex!!] = stepText
-                    editStepIndex = null
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                Button(onClick = { editStepIndex = null }) { Text("Cancel") }
-            },
-            text = {
-                OutlinedTextField(
-                    value = stepText,
-                    onValueChange = { stepText = it },
-                    label = { Text("Step") }
-                )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { editingStepIndex = -1 },
+                    modifier = Modifier.weight(1f).testTag("StepNew")
+                ) { Text("New Step") }
+                Button(
+                    onClick = { editingStepIndex = selectedStep },
+                    enabled = selectedStep != null,
+                    modifier = Modifier.weight(1f).testTag("StepEdit")
+                ) { Text("Edit Step") }
+                Button(
+                    onClick = { showClearDialog = true },
+                    modifier = Modifier.weight(1f).testTag("StepClear")
+                ) { Text("Clear Steps") }
             }
-        )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        scenario.name = title
+                        onSave(scenario)
+                    },
+                    modifier = Modifier.weight(1f).testTag("ScenarioSave")
+                ) { Text("Save") }
+                Button(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f).testTag("ScenarioCancel")
+                ) { Text("Cancel") }
+            }
+        }
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                confirmButton = {
+                    Button(onClick = {
+                        steps.clear()
+                        selectedStep = null
+                        showClearDialog = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    Button(onClick = { showClearDialog = false }) { Text("Cancel") }
+                },
+                text = { Text("Clear all steps?") }
+            )
+        }
     }
 }
 

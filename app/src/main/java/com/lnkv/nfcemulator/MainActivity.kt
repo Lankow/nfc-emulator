@@ -299,6 +299,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             }
         }
         ScenarioEditor(
+            modifier = modifier,
             scenario = workingScenario,
             onSave = { updated ->
                 if (isNew) scenarios.add(updated)
@@ -388,6 +389,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun ScenarioEditor(
+    modifier: Modifier = Modifier,
     scenario: Scenario,
     onSave: (Scenario) -> Unit,
     onCancel: () -> Unit
@@ -399,7 +401,7 @@ fun ScenarioEditor(
     var editStepIndex by remember { mutableStateOf<Int?>(null) }
     var stepText by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
             value = title,
             onValueChange = { input ->

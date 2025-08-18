@@ -28,8 +28,8 @@ import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -41,6 +41,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Alignment
@@ -57,14 +58,25 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.view.MotionEvent
+import androidx.core.view.doOnLayout
+import android.view.View
+import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
+import android.widget.TextView
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment.Companion.Center
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -79,7 +91,7 @@ import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
 /**
  * Main activity hosting a bottom navigation menu that switches between
- * Communication, Server, and Settings screens.
+ * Communication, Scenarios, and Server screens.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var cardEmulation: CardEmulation
@@ -114,17 +126,206 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Composable
+
+fun <T> EnumSpinner(
+    label: String,
+    options: List<T>,
+    selected: T,
+    labelMapper: (T) -> String,
+    onSelected: (T) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val labels = options.map(labelMapper)
+    var selectedIndex by remember { mutableStateOf(options.indexOf(selected)) }
+
+    fun dpToPx(dp: Float): Int = (dp * context.resources.displayMetrics.density).toInt()
+
+    val adapter = remember(labels, colors) {
+        object : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, labels) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val tv = super.getView(position, convertView, parent) as TextView
+                tv.setTextColor(colors.onSurface.toArgb())
+                tv.setPadding(dpToPx(16f), dpToPx(16f), dpToPx(16f), dpToPx(16f))
+                return tv
+            }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val tv = super.getDropDownView(position, convertView, parent) as TextView
+                val isSelected = position == selectedIndex
+                val bgColor = if (isSelected) colors.secondaryContainer.toArgb() else colors.surface.toArgb()
+                val textColor = if (isSelected) colors.onSecondaryContainer.toArgb() else colors.onSurface.toArgb()
+                tv.setTextColor(textColor)
+                val drawable = GradientDrawable().apply {
+                    setColor(bgColor)
+                    setStroke(dpToPx(1f), colors.outline.toArgb())
+                    cornerRadius = dpToPx(4f).toFloat()
+                }
+                tv.background = drawable
+                tv.setPadding(dpToPx(16f), dpToPx(16f), dpToPx(16f), dpToPx(16f))
+                tv.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            (v.background as GradientDrawable).setColor(colors.secondary.copy(alpha = 0.3f).toArgb())
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            (v.background as GradientDrawable).setColor(bgColor)
+                        }
+                    }
+                    false
+                }
+                return tv
+            }
+        }
+    }
+
+    Column(modifier = modifier) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, colors.outline, RoundedCornerShape(4.dp))
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    Spinner(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                        this.adapter = adapter
+                        setSelection(selectedIndex)
+                        onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                                selectedIndex = position
+                                adapter.notifyDataSetChanged()
+                                onSelected(options[position])
+                            }
+
+                            override fun onNothingSelected(parent: AdapterView<*>) {}
+                        }
+                        val popupBg = GradientDrawable().apply {
+                            setColor(colors.surface.toArgb())
+                            setStroke(dpToPx(1f), colors.outline.toArgb())
+                            cornerRadius = dpToPx(4f).toFloat()
+                        }
+                        setPopupBackgroundDrawable(popupBg)
+                        doOnLayout { dropDownWidth = it.width }
+                    }
+                },
+                update = { spinner ->
+                    selectedIndex = options.indexOf(selected)
+                    spinner.setSelection(selectedIndex)
+                    spinner.dropDownWidth = spinner.width
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+fun StepEditor(
+    modifier: Modifier = Modifier,
+    step: Step,
+    onSave: (Step) -> Unit,
+    onCancel: () -> Unit
+) {
+    var name by remember { mutableStateOf(step.name) }
+    var trigger by remember { mutableStateOf(step.trigger) }
+    var action by remember { mutableStateOf(step.action) }
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { input ->
+                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) name = input
+            },
+            label = { Text("Step Name") },
+            trailingIcon = {
+                IconButton(onClick = { name = "" }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Clear step name")
+                }
+            },
+            modifier = Modifier.fillMaxWidth().testTag("StepName")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        EnumSpinner(
+            label = "Trigger",
+            options = StepTrigger.entries.toList(),
+            selected = trigger,
+            labelMapper = { it.label },
+            onSelected = { trigger = it },
+            modifier = Modifier.fillMaxWidth().testTag("TriggerSpinner")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.CenterHorizontally)
+                .testTag("StepOptionDivider")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        EnumSpinner(
+            label = "Action",
+            options = StepAction.entries.toList(),
+            selected = action,
+            labelMapper = { it.label },
+            onSelected = { action = it },
+            modifier = Modifier.fillMaxWidth().testTag("ActionSpinner")
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    step.name = name
+                    step.trigger = trigger
+                    step.action = action
+                    onSave(step)
+                },
+                modifier = Modifier.weight(1f).testTag("StepSave")
+            ) { Text("Save") }
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f).testTag("StepCancel")
+            ) { Text("Cancel") }
+        }
+    }
+}
+
 /**
  * Navigation targets displayed in the bottom bar.
  */
 enum class Screen(val label: String) {
-    Communication("Comm"),
-    Scenario("Scenario"),
-    Server("Server"),
-    Settings("Settings")
+    Communication("Communication"),
+    Scenario("Scenarios"),
+    Server("Server")
 }
 
-data class Scenario(val name: String)
+enum class StepTrigger(val label: String) {
+    ServerRequest("Server Request"),
+    NfcRequest("Nfc Request"),
+    PreviousStep("Previous Step")
+}
+
+enum class StepAction(val label: String) {
+    ServerResponse("Server Response"),
+    NfcResponse("Nfc Response"),
+    Silenced("Silenced")
+}
+
+data class Step(
+    var name: String,
+    var trigger: StepTrigger = StepTrigger.ServerRequest,
+    var action: StepAction = StepAction.ServerResponse
+)
+
+data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,34 +336,31 @@ fun MainScreen() {
     androidx.compose.material3.Scaffold(
         bottomBar = {
             NavigationBar {
-                Screen.entries.forEach { screen ->
-                    NavigationBarItem(
-                        selected = currentScreen == screen,
-                        onClick = { currentScreen = screen },
-                        icon = {
-                            when (screen) {
-                                Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
-                                Screen.Scenario -> Icon(Icons.Filled.List, contentDescription = screen.label)
-                                Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
-                                Screen.Settings -> Icon(Icons.Filled.Settings, contentDescription = screen.label)
-                            }
-                        },
-                        label = { Text(screen.label) }
-                    )
-                }
+                  Screen.entries.forEach { screen ->
+                      NavigationBarItem(
+                          selected = currentScreen == screen,
+                          onClick = { currentScreen = screen },
+                          icon = {
+                              when (screen) {
+                                  Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
+                                  Screen.Scenario -> Icon(Icons.Filled.List, contentDescription = screen.label)
+                                  Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
+                              }
+                          },
+                          label = { Text(screen.label) }
+                      )
+                  }
             }
         }
     ) { padding ->
-        when (currentScreen) {
-            Screen.Communication ->
-                CommunicationScreen(logEntries, Modifier.padding(padding))
-            Screen.Scenario ->
-                ScenarioScreen(Modifier.padding(padding))
-            Screen.Server ->
-                ServerScreen(Modifier.padding(padding))
-            Screen.Settings ->
-                PlaceholderScreen("Settings", Modifier.padding(padding))
-        }
+          when (currentScreen) {
+              Screen.Communication ->
+                  CommunicationScreen(logEntries, Modifier.padding(padding))
+              Screen.Scenario ->
+                  ScenarioScreen(Modifier.padding(padding))
+              Screen.Server ->
+                  ServerScreen(Modifier.padding(padding))
+          }
     }
 }
 
@@ -266,8 +464,30 @@ fun CommunicationScreen(
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier) {
     val scenariosSaver = Saver<SnapshotStateList<Scenario>, List<String>>(
-        save = { list -> list.map { it.name } },
-        restore = { names -> names.map(::Scenario).toMutableStateList() }
+        save = { list ->
+            list.map { scenario ->
+                val stepString = scenario.steps.joinToString(",") { step ->
+                    listOf(step.name, step.trigger.name, step.action.name).joinToString(";")
+                }
+                scenario.name + "|" + stepString
+            }
+        },
+        restore = { serialized ->
+            serialized.map { line ->
+                val parts = line.split("|", limit = 2)
+                val name = parts[0]
+                val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
+                    parts[1].split(",").map { stepStr ->
+                        val sp = stepStr.split(";")
+                        val stepName = sp.getOrElse(0) { "" }
+                        val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
+                        val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
+                        Step(stepName, StepTrigger.valueOf(trigger), StepAction.valueOf(action))
+                    }.toMutableStateList()
+                } else mutableStateListOf()
+                Scenario(name, steps)
+            }.toMutableStateList()
+        }
     )
     val scenarios = rememberSaveable(saver = scenariosSaver) {
         mutableStateListOf(
@@ -276,76 +496,229 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
         )
     }
     var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showClearDialog by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .testTag("ScenarioList")
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(scenarios) { index, scenario ->
-                    val isSelected = selectedIndex == index
-                    Text(
-                        scenario.name,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                if (isSelected)
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                else Color.Transparent
-                            )
-                            .clickable { selectedIndex = index }
-                            .padding(12.dp)
-                            .testTag("ScenarioItem$index")
-                    )
+    if (editingIndex != null) {
+        val isNew = editingIndex == -1
+        val workingScenario = remember(editingIndex) {
+            if (isNew) Scenario("") else {
+                val original = scenarios[editingIndex!!]
+                Scenario(original.name, original.steps.toMutableStateList())
+            }
+        }
+        ScenarioEditor(
+            modifier = modifier,
+            scenario = workingScenario,
+            onSave = { updated ->
+                if (isNew) scenarios.add(updated)
+                else scenarios[editingIndex!!] = updated
+                editingIndex = null
+                selectedIndex = null
+            },
+            onCancel = { editingIndex = null }
+        )
+    } else {
+        Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .testTag("ScenarioList")
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(scenarios) { index, scenario ->
+                        val isSelected = selectedIndex == index
+                        Text(
+                            scenario.name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isSelected)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                    else Color.Transparent
+                                )
+                                .clickable { selectedIndex = index }
+                                .padding(12.dp)
+                                .testTag("ScenarioItem$index")
+                        )
+                    }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { editingIndex = -1 },
+                    modifier = Modifier.weight(1f).testTag("ScenarioNew")
+                ) { Text("New") }
+                Button(
+                    onClick = { editingIndex = selectedIndex },
+                    enabled = selectedIndex != null,
+                    modifier = Modifier.weight(1f).testTag("ScenarioEdit")
+                ) { Text("Edit") }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { /* TODO save scenarios */ },
+                    modifier = Modifier.weight(1f).testTag("ScenarioSave")
+                ) { Text("Save") }
+                Button(
+                    onClick = { showClearDialog = true },
+                    modifier = Modifier.weight(1f).testTag("ScenarioClear")
+                ) { Text("Clear") }
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    scenarios.add(Scenario("Scenario ${scenarios.size + 1}"))
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                confirmButton = {
+                    Button(onClick = {
+                        scenarios.clear()
+                        selectedIndex = null
+                        showClearDialog = false
+                    }) { Text("OK") }
                 },
-                modifier = Modifier.weight(1f).testTag("ScenarioNew")
+                dismissButton = {
+                    Button(onClick = { showClearDialog = false }) { Text("Cancel") }
+                },
+                text = { Text("Clear all scenarios?") }
+            )
+        }
+    }
+}
+
+@Composable
+fun ScenarioEditor(
+    modifier: Modifier = Modifier,
+    scenario: Scenario,
+    onSave: (Scenario) -> Unit,
+    onCancel: () -> Unit
+) {
+    var title by remember { mutableStateOf(scenario.name) }
+    val steps = scenario.steps
+    var selectedStep by remember { mutableStateOf<Int?>(null) }
+    var showClearDialog by remember { mutableStateOf(false) }
+    var editingStepIndex by remember { mutableStateOf<Int?>(null) }
+
+    if (editingStepIndex != null) {
+        val isNewStep = editingStepIndex == -1
+        val workingStep = remember(editingStepIndex) {
+            if (isNewStep) Step("") else steps[editingStepIndex!!].copy()
+        }
+        StepEditor(
+            modifier = modifier,
+            step = workingStep,
+            onSave = { updated ->
+                if (isNewStep) steps.add(updated) else steps[editingStepIndex!!] = updated
+                editingStepIndex = null
+                selectedStep = null
+            },
+            onCancel = { editingStepIndex = null }
+        )
+    } else {
+        Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { input ->
+                    if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) title = input
+                },
+                label = { Text("Scenario Title") },
+                trailingIcon = {
+                    IconButton(onClick = { title = "" }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Clear title")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().testTag("ScenarioTitle")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .testTag("StepList")
             ) {
-                Text("New")
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(steps) { index, step ->
+                        val isSelected = selectedStep == index
+                        Text(
+                            step.name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isSelected)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                    else Color.Transparent
+                                )
+                                .clickable { selectedStep = index }
+                                .padding(12.dp)
+                                .testTag("StepItem$index")
+                        )
+                    }
+                }
             }
-            Button(
-                onClick = { /* TODO edit scenario */ },
-                enabled = selectedIndex != null,
-                modifier = Modifier.weight(1f).testTag("ScenarioEdit")
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Edit")
+                Button(
+                    onClick = { editingStepIndex = -1 },
+                    modifier = Modifier.weight(1f).testTag("StepNew")
+                ) { Text("New Step") }
+                Button(
+                    onClick = { editingStepIndex = selectedStep },
+                    enabled = selectedStep != null,
+                    modifier = Modifier.weight(1f).testTag("StepEdit")
+                ) { Text("Edit Step") }
+                Button(
+                    onClick = { showClearDialog = true },
+                    modifier = Modifier.weight(1f).testTag("StepClear")
+                ) { Text("Clear Steps") }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        scenario.name = title
+                        onSave(scenario)
+                    },
+                    modifier = Modifier.weight(1f).testTag("ScenarioSave")
+                ) { Text("Save") }
+                Button(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f).testTag("ScenarioCancel")
+                ) { Text("Cancel") }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { /* TODO save scenarios */ },
-                modifier = Modifier.weight(1f).testTag("ScenarioSave")
-            ) {
-                Text("Save")
-            }
-            Button(
-                onClick = {
-                    scenarios.clear()
-                    selectedIndex = null
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                confirmButton = {
+                    Button(onClick = {
+                        steps.clear()
+                        selectedStep = null
+                        showClearDialog = false
+                    }) { Text("OK") }
                 },
-                modifier = Modifier.weight(1f).testTag("ScenarioClear")
-            ) {
-                Text("Clear")
-            }
+                dismissButton = {
+                    Button(onClick = { showClearDialog = false }) { Text("Cancel") }
+                },
+                text = { Text("Clear all steps?") }
+            )
         }
     }
 }
@@ -685,17 +1058,6 @@ fun CircleCheckbox(
         }
     }
 }
-
-/**
- * Simple placeholder used for sections that are not yet implemented.
- */
-@Composable
-fun PlaceholderScreen(text: String, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Center) {
-        Text(text)
-    }
-}
-
 /**
  * Renders a labeled list of communication log [entries]. Each list item is
  * colored red for requests and green for responses.

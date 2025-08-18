@@ -12,9 +12,8 @@ class MainScreenTest {
     @Test
     fun navigationIconsPresent() {
         composeTestRule.setContent { MainScreen() }
-        composeTestRule.onNodeWithContentDescription("Comm").assertExists()
-        composeTestRule.onNodeWithContentDescription("Scenario").assertExists()
+        composeTestRule.onNodeWithContentDescription("Communication").assertExists()
+        composeTestRule.onNodeWithContentDescription("Scenarios").assertExists()
         composeTestRule.onNodeWithContentDescription("Server").assertExists()
-        composeTestRule.onNodeWithContentDescription("Settings").assertExists()
     }
 }

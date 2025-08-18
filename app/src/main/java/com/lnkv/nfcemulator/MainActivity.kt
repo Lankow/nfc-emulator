@@ -58,10 +58,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
@@ -128,8 +125,6 @@ fun StepEditor(
     var name by remember { mutableStateOf(step.name) }
     var trigger by remember { mutableStateOf(step.trigger) }
     var action by remember { mutableStateOf(step.action) }
-    var triggerExpanded by remember { mutableStateOf(false) }
-    var actionExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -146,53 +141,44 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        ExposedDropdownMenuBox(expanded = triggerExpanded, onExpandedChange = { triggerExpanded = !triggerExpanded }) {
-            OutlinedTextField(
-                value = trigger.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Trigger") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(triggerExpanded) },
+        Text("Trigger")
+        StepTrigger.entries.forEach { option ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("TriggerDropdown")
-            )
-            DropdownMenu(expanded = triggerExpanded, onDismissRequest = { triggerExpanded = false }) {
-                StepTrigger.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label) },
-                        onClick = {
-                            trigger = option
-                            triggerExpanded = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                    .padding(vertical = 4.dp)
+            ) {
+                Checkbox(
+                    checked = trigger == option,
+                    onCheckedChange = { checked -> if (checked) trigger = option }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(option.label)
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        ExposedDropdownMenuBox(expanded = actionExpanded, onExpandedChange = { actionExpanded = !actionExpanded }) {
-            OutlinedTextField(
-                value = action.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Action") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(actionExpanded) },
+        HorizontalDivider(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.CenterHorizontally)
+                .testTag("StepOptionDivider")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Action")
+        StepAction.entries.forEach { option ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("ActionDropdown")
-            )
-            DropdownMenu(expanded = actionExpanded, onDismissRequest = { actionExpanded = false }) {
-                StepAction.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label) },
-                        onClick = {
-                            action = option
-                            actionExpanded = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                    .padding(vertical = 4.dp)
+            ) {
+                Checkbox(
+                    checked = action == option,
+                    onCheckedChange = { checked -> if (checked) action = option }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(option.label)
             }
         }
         Spacer(modifier = Modifier.height(16.dp))

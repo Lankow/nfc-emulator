@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,18 +57,20 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
+import android.graphics.drawable.ColorDrawable
+import android.view.View
+import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
+import android.widget.TextView
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
@@ -121,6 +122,69 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun <T> EnumSpinner(
+    label: String,
+    options: List<T>,
+    selected: T,
+    labelMapper: (T) -> String,
+    onSelected: (T) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val labels = options.map(labelMapper)
+    val adapter = remember(labels, colors) {
+        object : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, labels) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val tv = super.getView(position, convertView, parent) as TextView
+                tv.setTextColor(colors.onSurface.toArgb())
+                return tv
+            }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val tv = super.getDropDownView(position, convertView, parent) as TextView
+                tv.setTextColor(colors.onSurface.toArgb())
+                tv.setBackgroundColor(colors.surface.toArgb())
+                return tv
+            }
+        }.apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+    }
+
+    Column(modifier = modifier) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, colors.outline, RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp)
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    Spinner(ctx).apply {
+                        this.adapter = adapter
+                        setSelection(options.indexOf(selected))
+                        onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                                onSelected(options[position])
+                            }
+
+                            override fun onNothingSelected(parent: AdapterView<*>) {}
+                        }
+                        setPopupBackgroundDrawable(ColorDrawable(colors.surface.toArgb()))
+                    }
+                },
+                update = { spinner ->
+                    spinner.setSelection(options.indexOf(selected))
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
 fun StepEditor(
     modifier: Modifier = Modifier,
     step: Step,
@@ -146,45 +210,14 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        var triggerExpanded by remember { mutableStateOf(false) }
-        var triggerWidth by remember { mutableStateOf(0.dp) }
-        val density = LocalDensity.current
-        Box {
-            OutlinedTextField(
-                value = trigger.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Trigger") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onGloballyPositioned { coordinates ->
-                        triggerWidth = with(density) { coordinates.size.width.toDp() }
-                    }
-                    .clickable { triggerExpanded = true }
-            )
-            DropdownMenu(
-                expanded = triggerExpanded,
-                onDismissRequest = { triggerExpanded = false },
-                modifier = Modifier
-                    .width(triggerWidth)
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                StepTrigger.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label, color = MaterialTheme.colorScheme.onSurface) },
-                        onClick = {
-                            trigger = option
-                            triggerExpanded = false
-                        }
-                    )
-                }
-            }
-        }
+        EnumSpinner(
+            label = "Trigger",
+            options = StepTrigger.entries.toList(),
+            selected = trigger,
+            labelMapper = { it.label },
+            onSelected = { trigger = it },
+            modifier = Modifier.fillMaxWidth().testTag("TriggerSpinner")
+        )
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier
@@ -193,44 +226,14 @@ fun StepEditor(
                 .testTag("StepOptionDivider")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        var actionExpanded by remember { mutableStateOf(false) }
-        var actionWidth by remember { mutableStateOf(0.dp) }
-        Box {
-            OutlinedTextField(
-                value = action.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Action") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onGloballyPositioned { coordinates ->
-                        actionWidth = with(density) { coordinates.size.width.toDp() }
-                    }
-                    .clickable { actionExpanded = true }
-            )
-            DropdownMenu(
-                expanded = actionExpanded,
-                onDismissRequest = { actionExpanded = false },
-                modifier = Modifier
-                    .width(actionWidth)
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                StepAction.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label, color = MaterialTheme.colorScheme.onSurface) },
-                        onClick = {
-                            action = option
-                            actionExpanded = false
-                        }
-                    )
-                }
-            }
-        }
+        EnumSpinner(
+            label = "Action",
+            options = StepAction.entries.toList(),
+            selected = action,
+            labelMapper = { it.label },
+            onSelected = { action = it },
+            modifier = Modifier.fillMaxWidth().testTag("ActionSpinner")
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),

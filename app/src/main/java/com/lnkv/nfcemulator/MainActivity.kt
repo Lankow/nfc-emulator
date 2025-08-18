@@ -59,6 +59,9 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.view.MotionEvent
+import androidx.core.view.doOnLayout
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -124,6 +127,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+
 fun <T> EnumSpinner(
     label: String,
     options: List<T>,
@@ -135,22 +139,44 @@ fun <T> EnumSpinner(
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val labels = options.map(labelMapper)
+    var selectedIndex by remember { mutableStateOf(options.indexOf(selected)) }
+
+    fun dpToPx(dp: Float): Int = (dp * context.resources.displayMetrics.density).toInt()
+
     val adapter = remember(labels, colors) {
         object : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, labels) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val tv = super.getView(position, convertView, parent) as TextView
                 tv.setTextColor(colors.onSurface.toArgb())
+                tv.setPadding(dpToPx(12f), dpToPx(8f), dpToPx(12f), dpToPx(8f))
                 return tv
             }
 
             override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val tv = super.getDropDownView(position, convertView, parent) as TextView
-                tv.setTextColor(colors.onSurface.toArgb())
-                tv.setBackgroundColor(colors.surface.toArgb())
+                val isSelected = position == selectedIndex
+                val bgColor = if (isSelected) colors.secondaryContainer.toArgb() else colors.surface.toArgb()
+                val textColor = if (isSelected) colors.onSecondaryContainer.toArgb() else colors.onSurface.toArgb()
+                tv.setTextColor(textColor)
+                val drawable = GradientDrawable().apply {
+                    setColor(bgColor)
+                    setStroke(dpToPx(1f), colors.outline.toArgb())
+                }
+                tv.background = drawable
+                tv.setPadding(dpToPx(12f), dpToPx(8f), dpToPx(12f), dpToPx(8f))
+                tv.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            (v.background as GradientDrawable).setColor(colors.secondary.copy(alpha = 0.3f).toArgb())
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            (v.background as GradientDrawable).setColor(bgColor)
+                        }
+                    }
+                    false
+                }
                 return tv
             }
-        }.apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
     }
 
@@ -160,27 +186,40 @@ fun <T> EnumSpinner(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, colors.outline, RoundedCornerShape(4.dp))
-                .padding(horizontal = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             AndroidView(
                 factory = { ctx ->
                     Spinner(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
                         this.adapter = adapter
-                        setSelection(options.indexOf(selected))
+                        setSelection(selectedIndex)
                         onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                                selectedIndex = position
+                                adapter.notifyDataSetChanged()
                                 onSelected(options[position])
                             }
 
                             override fun onNothingSelected(parent: AdapterView<*>) {}
                         }
-                        setPopupBackgroundDrawable(ColorDrawable(colors.surface.toArgb()))
+                        val popupBg = GradientDrawable().apply {
+                            setColor(colors.surface.toArgb())
+                            setStroke(dpToPx(1f), colors.outline.toArgb())
+                        }
+                        setPopupBackgroundDrawable(popupBg)
+                        doOnLayout { dropDownWidth = it.width }
                     }
                 },
                 update = { spinner ->
-                    spinner.setSelection(options.indexOf(selected))
+                    selectedIndex = options.indexOf(selected)
+                    spinner.setSelection(selectedIndex)
+                    spinner.dropDownWidth = spinner.width
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

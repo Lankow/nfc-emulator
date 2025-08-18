@@ -22,8 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -127,8 +125,8 @@ fun StepEditor(
     var name by remember { mutableStateOf(step.name) }
     var trigger by remember { mutableStateOf(step.trigger) }
     var action by remember { mutableStateOf(step.action) }
-    var triggerExpanded by remember { mutableStateOf(false) }
-    var actionExpanded by remember { mutableStateOf(false) }
+    var triggerDialog by remember { mutableStateOf(false) }
+    var actionDialog by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -145,62 +143,74 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Box {
-            OutlinedTextField(
-                value = trigger.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Trigger") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Expand trigger") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("TriggerDropdown")
-                    .clickable { triggerExpanded = true }
-            )
-            DropdownMenu(
-                expanded = triggerExpanded,
-                onDismissRequest = { triggerExpanded = false },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                StepTrigger.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label) },
-                        onClick = {
-                            trigger = option
-                            triggerExpanded = false
+        OutlinedTextField(
+            value = trigger.label,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Trigger") },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Expand trigger") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("TriggerDropdown")
+                .clickable { triggerDialog = true }
+        )
+        if (triggerDialog) {
+            AlertDialog(
+                onDismissRequest = { triggerDialog = false },
+                confirmButton = {},
+                title = { Text("Trigger") },
+                text = {
+                    Column {
+                        StepTrigger.entries.forEach { option ->
+                            Text(
+                                option.label,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        trigger = option
+                                        triggerDialog = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            )
                         }
-                    )
+                    }
                 }
-            }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Box {
-            OutlinedTextField(
-                value = action.label,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Action") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Expand action") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("ActionDropdown")
-                    .clickable { actionExpanded = true }
-            )
-            DropdownMenu(
-                expanded = actionExpanded,
-                onDismissRequest = { actionExpanded = false },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                StepAction.entries.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.label) },
-                        onClick = {
-                            action = option
-                            actionExpanded = false
+        OutlinedTextField(
+            value = action.label,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Action") },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Expand action") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ActionDropdown")
+                .clickable { actionDialog = true }
+        )
+        if (actionDialog) {
+            AlertDialog(
+                onDismissRequest = { actionDialog = false },
+                confirmButton = {},
+                title = { Text("Action") },
+                text = {
+                    Column {
+                        StepAction.entries.forEach { option ->
+                            Text(
+                                option.label,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        action = option
+                                        actionDialog = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            )
                         }
-                    )
+                    }
                 }
-            }
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
         Row(

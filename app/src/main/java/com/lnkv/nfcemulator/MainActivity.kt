@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,12 +58,11 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.ui.viewinterop.AndroidView
-import android.widget.Spinner
-import android.widget.ArrayAdapter
-import android.widget.AdapterView
-import android.view.View
-import android.view.ViewGroup
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.testTag
@@ -146,35 +146,45 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Trigger")
-        AndroidView(
-            factory = { context ->
-                Spinner(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    )
-                    adapter = ArrayAdapter(
-                        context,
-                        android.R.layout.simple_spinner_dropdown_item,
-                        StepTrigger.entries.map { it.label }
-                    )
-                    setSelection(StepTrigger.entries.indexOf(trigger))
-                    onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                        override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-                            trigger = StepTrigger.entries[position]
-                        }
-
-                        override fun onNothingSelected(parent: AdapterView<*>) {}
+        var triggerExpanded by remember { mutableStateOf(false) }
+        var triggerWidth by remember { mutableStateOf(0.dp) }
+        val density = LocalDensity.current
+        Box {
+            OutlinedTextField(
+                value = trigger.label,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Trigger") },
+                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coordinates ->
+                        triggerWidth = with(density) { coordinates.size.width.toDp() }
                     }
+                    .clickable { triggerExpanded = true }
+            )
+            DropdownMenu(
+                expanded = triggerExpanded,
+                onDismissRequest = { triggerExpanded = false },
+                modifier = Modifier
+                    .width(triggerWidth)
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                StepTrigger.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.label, color = MaterialTheme.colorScheme.onSurface) },
+                        onClick = {
+                            trigger = option
+                            triggerExpanded = false
+                        }
+                    )
                 }
-            },
-            update = { spinner ->
-                val index = StepTrigger.entries.indexOf(trigger)
-                if (spinner.selectedItemPosition != index) spinner.setSelection(index)
-            },
-            modifier = Modifier.fillMaxWidth().testTag("TriggerSpinner")
-        )
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier
@@ -183,35 +193,44 @@ fun StepEditor(
                 .testTag("StepOptionDivider")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Action")
-        AndroidView(
-            factory = { context ->
-                Spinner(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    )
-                    adapter = ArrayAdapter(
-                        context,
-                        android.R.layout.simple_spinner_dropdown_item,
-                        StepAction.entries.map { it.label }
-                    )
-                    setSelection(StepAction.entries.indexOf(action))
-                    onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                        override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-                            action = StepAction.entries[position]
-                        }
-
-                        override fun onNothingSelected(parent: AdapterView<*>) {}
+        var actionExpanded by remember { mutableStateOf(false) }
+        var actionWidth by remember { mutableStateOf(0.dp) }
+        Box {
+            OutlinedTextField(
+                value = action.label,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Action") },
+                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coordinates ->
+                        actionWidth = with(density) { coordinates.size.width.toDp() }
                     }
+                    .clickable { actionExpanded = true }
+            )
+            DropdownMenu(
+                expanded = actionExpanded,
+                onDismissRequest = { actionExpanded = false },
+                modifier = Modifier
+                    .width(actionWidth)
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                StepAction.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.label, color = MaterialTheme.colorScheme.onSurface) },
+                        onClick = {
+                            action = option
+                            actionExpanded = false
+                        }
+                    )
                 }
-            },
-            update = { spinner ->
-                val index = StepAction.entries.indexOf(action)
-                if (spinner.selectedItemPosition != index) spinner.setSelection(index)
-            },
-            modifier = Modifier.fillMaxWidth().testTag("ActionSpinner")
-        )
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),

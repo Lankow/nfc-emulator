@@ -22,8 +22,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.menuAnchor
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -82,7 +85,7 @@ import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
 /**
  * Main activity hosting a bottom navigation menu that switches between
- * Communication, Scenario, and Server screens.
+ * Communication, Scenarios, and Server screens.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var cardEmulation: CardEmulation
@@ -145,54 +148,64 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Box {
+        ExposedDropdownMenuBox(
+            expanded = triggerExpanded,
+            onExpandedChange = { triggerExpanded = !triggerExpanded }
+        ) {
             OutlinedTextField(
                 value = trigger.label,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Trigger") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = triggerExpanded) },
                 modifier = Modifier
+                    .menuAnchor()
                     .fillMaxWidth()
                     .testTag("TriggerDropdown")
-                    .clickable { triggerExpanded = true }
             )
-            DropdownMenu(
+            ExposedDropdownMenu(
                 expanded = triggerExpanded,
-                onDismissRequest = { triggerExpanded = false },
-                modifier = Modifier.fillMaxWidth()
+                onDismissRequest = { triggerExpanded = false }
             ) {
                 StepTrigger.entries.forEach { option ->
-                    DropdownMenuItem(text = { Text(option.label) }, onClick = {
-                        trigger = option
-                        triggerExpanded = false
-                    })
+                    DropdownMenuItem(
+                        text = { Text(option.label) },
+                        onClick = {
+                            trigger = option
+                            triggerExpanded = false
+                        }
+                    )
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Box {
+        ExposedDropdownMenuBox(
+            expanded = actionExpanded,
+            onExpandedChange = { actionExpanded = !actionExpanded }
+        ) {
             OutlinedTextField(
                 value = action.label,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Action") },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = actionExpanded) },
                 modifier = Modifier
+                    .menuAnchor()
                     .fillMaxWidth()
                     .testTag("ActionDropdown")
-                    .clickable { actionExpanded = true }
             )
-            DropdownMenu(
+            ExposedDropdownMenu(
                 expanded = actionExpanded,
-                onDismissRequest = { actionExpanded = false },
-                modifier = Modifier.fillMaxWidth()
+                onDismissRequest = { actionExpanded = false }
             ) {
                 StepAction.entries.forEach { option ->
-                    DropdownMenuItem(text = { Text(option.label) }, onClick = {
-                        action = option
-                        actionExpanded = false
-                    })
+                    DropdownMenuItem(
+                        text = { Text(option.label) },
+                        onClick = {
+                            action = option
+                            actionExpanded = false
+                        }
+                    )
                 }
             }
         }
@@ -223,7 +236,7 @@ fun StepEditor(
  */
 enum class Screen(val label: String) {
     Communication("Communication"),
-    Scenario("Scenario"),
+    Scenario("Scenarios"),
     Server("Server")
 }
 

@@ -250,7 +250,12 @@ fun StepEditor(
     var action by remember { mutableStateOf(step.action) }
     var request by remember { mutableStateOf(step.request) }
     var response by remember { mutableStateOf(step.response) }
-    var duration by remember { mutableStateOf(step.durationMs.toString()) }
+    var delayMode by remember { mutableStateOf(step.delayMode) }
+    var duration by remember {
+        mutableStateOf(
+            if (delayMode == DelayMode.Duration) step.durationMs.toString() else step.occurrences.toString()
+        )
+    }
     val prevStepOptions = availableSteps.map { it.name }
     var previousStep by remember { mutableStateOf(step.previousStepName ?: prevStepOptions.firstOrNull()) }
 
@@ -346,6 +351,25 @@ fun StepEditor(
             enabled = action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)
         )
         Spacer(modifier = Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = delayMode == DelayMode.Duration,
+                onClick = {
+                    delayMode = DelayMode.Duration
+                    duration = step.durationMs.toString()
+                },
+                shape = SegmentedButtonDefaults.itemShape(0, 2)
+            ) { Text("Duration") }
+            SegmentedButton(
+                selected = delayMode == DelayMode.Occurrences,
+                onClick = {
+                    delayMode = DelayMode.Occurrences
+                    duration = step.occurrences.toString()
+                },
+                shape = SegmentedButtonDefaults.itemShape(1, 2)
+            ) { Text("Occurrences") }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = duration,
             onValueChange = { input ->
@@ -357,7 +381,7 @@ fun StepEditor(
                     else -> value.coerceIn(1, 1_000_000).toString()
                 }
             },
-            label = { Text("Duration [ms]") },
+            label = { Text(if (delayMode == DelayMode.Duration) "Duration [ms]" else "Times") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth().testTag("StepDuration")
         )
@@ -374,7 +398,12 @@ fun StepEditor(
                     step.request = if (trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)) request else ""
                     step.response = if (action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)) response else ""
                     step.previousStepName = if (trigger == StepTrigger.PreviousStep) previousStep else null
-                    step.durationMs = duration.toInt()
+                    step.delayMode = delayMode
+                    if (delayMode == DelayMode.Duration) {
+                        step.durationMs = duration.toInt()
+                    } else {
+                        step.occurrences = duration.toInt()
+                    }
                     onSave(step)
                 },
                 enabled = requestValid && responseValid && durationValid,
@@ -409,6 +438,8 @@ enum class StepAction(val label: String) {
     Silenced("Silenced")
 }
 
+enum class DelayMode { Duration, Occurrences }
+
 data class Step(
     var name: String,
     var trigger: StepTrigger = StepTrigger.ServerRequest,
@@ -416,7 +447,9 @@ data class Step(
     var request: String = "",
     var response: String = "",
     var previousStepName: String? = null,
-    var durationMs: Int = 1000
+    var durationMs: Int = 1000,
+    var delayMode: DelayMode = DelayMode.Duration,
+    var occurrences: Int = 1
 )
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
@@ -568,7 +601,9 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         step.request,
                         step.response,
                         step.previousStepName ?: "",
-                        step.durationMs.toString()
+                        step.durationMs.toString(),
+                        step.delayMode.name,
+                        step.occurrences.toString()
                     ).joinToString(";")
                 }
                 scenario.name + "|" + stepString
@@ -588,6 +623,8 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         val response = sp.getOrElse(4) { "" }
                         val prev = sp.getOrElse(5) { "" }
                         val duration = sp.getOrElse(6) { "1000" }
+                        val mode = sp.getOrElse(7) { DelayMode.Duration.name }
+                        val occurrences = sp.getOrElse(8) { "1" }
                         Step(
                             stepName,
                             StepTrigger.valueOf(trigger),
@@ -595,7 +632,9 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                             request,
                             response,
                             prev.ifEmpty { null },
-                            duration.toIntOrNull() ?: 1000
+                            duration.toIntOrNull() ?: 1000,
+                            DelayMode.valueOf(mode),
+                            occurrences.toIntOrNull() ?: 1
                         )
                     }.toMutableStateList()
                 } else mutableStateListOf()

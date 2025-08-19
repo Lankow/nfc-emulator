@@ -82,6 +82,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import android.content.res.ColorStateList
 import java.io.File
 import java.net.InetAddress
 import java.nio.ByteBuffer
@@ -134,7 +135,8 @@ fun <T> EnumSpinner(
     selected: T,
     labelMapper: (T) -> String,
     onSelected: (T) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -197,6 +199,7 @@ fun <T> EnumSpinner(
                         )
                         this.adapter = adapter
                         setSelection(selectedIndex)
+                        backgroundTintList = ColorStateList.valueOf(colors.primary.toArgb())
                         onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
                                 selectedIndex = position
@@ -213,12 +216,15 @@ fun <T> EnumSpinner(
                         }
                         setPopupBackgroundDrawable(popupBg)
                         doOnLayout { dropDownWidth = it.width }
+                        isEnabled = enabled
                     }
                 },
                 update = { spinner ->
                     selectedIndex = options.indexOf(selected)
                     spinner.setSelection(selectedIndex)
                     spinner.dropDownWidth = spinner.width
+                    spinner.backgroundTintList = ColorStateList.valueOf(colors.primary.toArgb())
+                    spinner.isEnabled = enabled
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -230,12 +236,41 @@ fun <T> EnumSpinner(
 fun StepEditor(
     modifier: Modifier = Modifier,
     step: Step,
+    availableSteps: List<Step> = emptyList(),
     onSave: (Step) -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(step.name) }
-    var trigger by remember { mutableStateOf(step.trigger) }
+    var trigger by remember {
+        mutableStateOf(
+            if (availableSteps.isEmpty() && step.trigger == StepTrigger.PreviousStep)
+                StepTrigger.ServerRequest else step.trigger
+        )
+    }
     var action by remember { mutableStateOf(step.action) }
+    var request by remember { mutableStateOf(step.request) }
+    var response by remember { mutableStateOf(step.response) }
+    var delayMode by remember { mutableStateOf(step.delayMode) }
+    var duration by remember {
+        mutableStateOf(
+            when (delayMode) {
+                DelayMode.Duration -> step.durationMs.toString()
+                DelayMode.Occurrences -> step.occurrences.toString()
+                DelayMode.Always -> ""
+            }
+        )
+    }
+    val prevStepOptions = availableSteps.map { it.name }
+    var previousStep by remember { mutableStateOf(step.previousStepName ?: prevStepOptions.firstOrNull()) }
+
+    val triggerOptions = if (prevStepOptions.isEmpty()) {
+        StepTrigger.entries.filter { it != StepTrigger.PreviousStep }
+    } else StepTrigger.entries.toList()
+
+    val hexRegex = remember { Regex("^[0-9A-Fa-f]*$") }
+    val requestValid = trigger != StepTrigger.NfcRequest || (request.matches(hexRegex) && request.length % 2 == 0)
+    val responseValid = action != StepAction.NfcResponse || (response.matches(hexRegex) && response.length % 2 == 0)
+    val durationValid = delayMode == DelayMode.Always || duration.toIntOrNull()?.let { it in 1..1_000_000 } == true
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -252,14 +287,45 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.CenterHorizontally)
+                .testTag("StepNameDivider")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         EnumSpinner(
             label = "Trigger",
-            options = StepTrigger.entries.toList(),
+            options = triggerOptions,
             selected = trigger,
             labelMapper = { it.label },
             onSelected = { trigger = it },
             modifier = Modifier.fillMaxWidth().testTag("TriggerSpinner")
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = request,
+            onValueChange = { input ->
+                val filtered = if (trigger == StepTrigger.NfcRequest) input.uppercase() else input
+                if (trigger != StepTrigger.NfcRequest || filtered.matches(hexRegex)) request = filtered
+            },
+            label = { Text("Request") },
+            isError = trigger == StepTrigger.NfcRequest && (request.isNotEmpty() && request.length % 2 != 0),
+            modifier = Modifier.fillMaxWidth(),
+            enabled = trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)
+        )
+        if (prevStepOptions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            EnumSpinner(
+                label = "Previous Step",
+                options = prevStepOptions,
+                selected = previousStep ?: prevStepOptions.first(),
+                labelMapper = { it },
+                onSelected = { previousStep = it },
+                modifier = Modifier.fillMaxWidth().testTag("PrevStepSpinner"),
+                enabled = trigger == StepTrigger.PreviousStep
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier
@@ -276,6 +342,70 @@ fun StepEditor(
             onSelected = { action = it },
             modifier = Modifier.fillMaxWidth().testTag("ActionSpinner")
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = response,
+            onValueChange = { input ->
+                val filtered = if (action == StepAction.NfcResponse) input.uppercase() else input
+                if (action != StepAction.NfcResponse || filtered.matches(hexRegex)) response = filtered
+            },
+            label = { Text("Response") },
+            isError = action == StepAction.NfcResponse && (response.isNotEmpty() && response.length % 2 != 0),
+            modifier = Modifier.fillMaxWidth(),
+            enabled = action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = delayMode == DelayMode.Duration,
+                onClick = {
+                    delayMode = DelayMode.Duration
+                    duration = step.durationMs.toString()
+                },
+                shape = SegmentedButtonDefaults.itemShape(0, 3)
+            ) { Text("Duration") }
+            SegmentedButton(
+                selected = delayMode == DelayMode.Occurrences,
+                onClick = {
+                    delayMode = DelayMode.Occurrences
+                    duration = step.occurrences.toString()
+                },
+                shape = SegmentedButtonDefaults.itemShape(1, 3)
+            ) { Text("Occurrences") }
+            SegmentedButton(
+                selected = delayMode == DelayMode.Always,
+                onClick = {
+                    delayMode = DelayMode.Always
+                    duration = ""
+                },
+                shape = SegmentedButtonDefaults.itemShape(2, 3)
+            ) { Text("Always") }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = duration,
+            onValueChange = { input ->
+                val filtered = input.filter { it.isDigit() }
+                val value = filtered.toIntOrNull()
+                duration = when {
+                    filtered.isEmpty() -> ""
+                    value == null -> duration
+                    else -> value.coerceIn(1, 1_000_000).toString()
+                }
+            },
+            label = {
+                Text(
+                    when (delayMode) {
+                        DelayMode.Duration -> "Duration [ms]"
+                        DelayMode.Occurrences -> "Times"
+                        DelayMode.Always -> "Duration [ms]"
+                    }
+                )
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth().testTag("StepDuration"),
+            enabled = delayMode != DelayMode.Always
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -286,8 +416,21 @@ fun StepEditor(
                     step.name = name
                     step.trigger = trigger
                     step.action = action
+                    step.request = if (trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)) request else ""
+                    step.response = if (action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)) response else ""
+                    step.previousStepName = if (trigger == StepTrigger.PreviousStep) previousStep else null
+                    step.delayMode = delayMode
+                    when (delayMode) {
+                        DelayMode.Duration -> step.durationMs = duration.toInt()
+                        DelayMode.Occurrences -> step.occurrences = duration.toInt()
+                        DelayMode.Always -> {
+                            step.durationMs = 0
+                            step.occurrences = 0
+                        }
+                    }
                     onSave(step)
                 },
+                enabled = requestValid && responseValid && durationValid,
                 modifier = Modifier.weight(1f).testTag("StepSave")
             ) { Text("Save") }
             Button(
@@ -319,10 +462,18 @@ enum class StepAction(val label: String) {
     Silenced("Silenced")
 }
 
+enum class DelayMode { Duration, Occurrences, Always }
+
 data class Step(
     var name: String,
     var trigger: StepTrigger = StepTrigger.ServerRequest,
-    var action: StepAction = StepAction.ServerResponse
+    var action: StepAction = StepAction.ServerResponse,
+    var request: String = "",
+    var response: String = "",
+    var previousStepName: String? = null,
+    var durationMs: Int = 1000,
+    var delayMode: DelayMode = DelayMode.Duration,
+    var occurrences: Int = 1
 )
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
@@ -467,7 +618,17 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
         save = { list ->
             list.map { scenario ->
                 val stepString = scenario.steps.joinToString(",") { step ->
-                    listOf(step.name, step.trigger.name, step.action.name).joinToString(";")
+                    listOf(
+                        step.name,
+                        step.trigger.name,
+                        step.action.name,
+                        step.request,
+                        step.response,
+                        step.previousStepName ?: "",
+                        step.durationMs.toString(),
+                        step.delayMode.name,
+                        step.occurrences.toString()
+                    ).joinToString(";")
                 }
                 scenario.name + "|" + stepString
             }
@@ -482,7 +643,23 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         val stepName = sp.getOrElse(0) { "" }
                         val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
                         val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
-                        Step(stepName, StepTrigger.valueOf(trigger), StepAction.valueOf(action))
+                        val request = sp.getOrElse(3) { "" }
+                        val response = sp.getOrElse(4) { "" }
+                        val prev = sp.getOrElse(5) { "" }
+                        val duration = sp.getOrElse(6) { "1000" }
+                        val mode = sp.getOrElse(7) { DelayMode.Duration.name }
+                        val occurrences = sp.getOrElse(8) { "1" }
+                        Step(
+                            stepName,
+                            StepTrigger.valueOf(trigger),
+                            StepAction.valueOf(action),
+                            request,
+                            response,
+                            prev.ifEmpty { null },
+                            duration.toIntOrNull() ?: 1000,
+                            DelayMode.valueOf(mode),
+                            occurrences.toIntOrNull() ?: 1
+                        )
                     }.toMutableStateList()
                 } else mutableStateListOf()
                 Scenario(name, steps)
@@ -614,9 +791,13 @@ fun ScenarioEditor(
         val workingStep = remember(editingStepIndex) {
             if (isNewStep) Step("") else steps[editingStepIndex!!].copy()
         }
+        val available = remember(editingStepIndex, steps) {
+            steps.filterIndexed { index, _ -> index != editingStepIndex }
+        }
         StepEditor(
             modifier = modifier,
             step = workingStep,
+            availableSteps = available,
             onSave = { updated ->
                 if (isNewStep) steps.add(updated) else steps[editingStepIndex!!] = updated
                 editingStepIndex = null

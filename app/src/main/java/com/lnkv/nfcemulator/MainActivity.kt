@@ -253,7 +253,11 @@ fun StepEditor(
     var delayMode by remember { mutableStateOf(step.delayMode) }
     var duration by remember {
         mutableStateOf(
-            if (delayMode == DelayMode.Duration) step.durationMs.toString() else step.occurrences.toString()
+            when (delayMode) {
+                DelayMode.Duration -> step.durationMs.toString()
+                DelayMode.Occurrences -> step.occurrences.toString()
+                DelayMode.Always -> ""
+            }
         )
     }
     val prevStepOptions = availableSteps.map { it.name }
@@ -266,7 +270,7 @@ fun StepEditor(
     val hexRegex = remember { Regex("^[0-9A-Fa-f]*$") }
     val requestValid = trigger != StepTrigger.NfcRequest || (request.matches(hexRegex) && request.length % 2 == 0)
     val responseValid = action != StepAction.NfcResponse || (response.matches(hexRegex) && response.length % 2 == 0)
-    val durationValid = duration.toIntOrNull()?.let { it in 1..1_000_000 } == true
+    val durationValid = delayMode == DelayMode.Always || duration.toIntOrNull()?.let { it in 1..1_000_000 } == true
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -358,7 +362,7 @@ fun StepEditor(
                     delayMode = DelayMode.Duration
                     duration = step.durationMs.toString()
                 },
-                shape = SegmentedButtonDefaults.itemShape(0, 2)
+                shape = SegmentedButtonDefaults.itemShape(0, 3)
             ) { Text("Duration") }
             SegmentedButton(
                 selected = delayMode == DelayMode.Occurrences,
@@ -366,8 +370,16 @@ fun StepEditor(
                     delayMode = DelayMode.Occurrences
                     duration = step.occurrences.toString()
                 },
-                shape = SegmentedButtonDefaults.itemShape(1, 2)
+                shape = SegmentedButtonDefaults.itemShape(1, 3)
             ) { Text("Occurrences") }
+            SegmentedButton(
+                selected = delayMode == DelayMode.Always,
+                onClick = {
+                    delayMode = DelayMode.Always
+                    duration = ""
+                },
+                shape = SegmentedButtonDefaults.itemShape(2, 3)
+            ) { Text("Always") }
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
@@ -381,9 +393,18 @@ fun StepEditor(
                     else -> value.coerceIn(1, 1_000_000).toString()
                 }
             },
-            label = { Text(if (delayMode == DelayMode.Duration) "Duration [ms]" else "Times") },
+            label = {
+                Text(
+                    when (delayMode) {
+                        DelayMode.Duration -> "Duration [ms]"
+                        DelayMode.Occurrences -> "Times"
+                        DelayMode.Always -> "Duration [ms]"
+                    }
+                )
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth().testTag("StepDuration")
+            modifier = Modifier.fillMaxWidth().testTag("StepDuration"),
+            enabled = delayMode != DelayMode.Always
         )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
@@ -399,10 +420,13 @@ fun StepEditor(
                     step.response = if (action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)) response else ""
                     step.previousStepName = if (trigger == StepTrigger.PreviousStep) previousStep else null
                     step.delayMode = delayMode
-                    if (delayMode == DelayMode.Duration) {
-                        step.durationMs = duration.toInt()
-                    } else {
-                        step.occurrences = duration.toInt()
+                    when (delayMode) {
+                        DelayMode.Duration -> step.durationMs = duration.toInt()
+                        DelayMode.Occurrences -> step.occurrences = duration.toInt()
+                        DelayMode.Always -> {
+                            step.durationMs = 0
+                            step.occurrences = 0
+                        }
                     }
                     onSave(step)
                 },
@@ -438,7 +462,7 @@ enum class StepAction(val label: String) {
     Silenced("Silenced")
 }
 
-enum class DelayMode { Duration, Occurrences }
+enum class DelayMode { Duration, Occurrences, Always }
 
 data class Step(
     var name: String,

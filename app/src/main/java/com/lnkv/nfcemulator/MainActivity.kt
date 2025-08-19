@@ -250,6 +250,7 @@ fun StepEditor(
     var action by remember { mutableStateOf(step.action) }
     var request by remember { mutableStateOf(step.request) }
     var response by remember { mutableStateOf(step.response) }
+    var duration by remember { mutableStateOf(step.durationMs.toString()) }
     val prevStepOptions = availableSteps.map { it.name }
     var previousStep by remember { mutableStateOf(step.previousStepName ?: prevStepOptions.firstOrNull()) }
 
@@ -260,6 +261,7 @@ fun StepEditor(
     val hexRegex = remember { Regex("^[0-9A-Fa-f]*$") }
     val requestValid = trigger != StepTrigger.NfcRequest || (request.matches(hexRegex) && request.length % 2 == 0)
     val responseValid = action != StepAction.NfcResponse || (response.matches(hexRegex) && response.length % 2 == 0)
+    val durationValid = duration.toIntOrNull()?.let { it in 1..1_000_000 } == true
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -274,6 +276,13 @@ fun StepEditor(
                 }
             },
             modifier = Modifier.fillMaxWidth().testTag("StepName")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.CenterHorizontally)
+                .testTag("StepNameDivider")
         )
         Spacer(modifier = Modifier.height(8.dp))
         EnumSpinner(
@@ -336,6 +345,22 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth(),
             enabled = action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = duration,
+            onValueChange = { input ->
+                val filtered = input.filter { it.isDigit() }
+                val value = filtered.toIntOrNull()
+                duration = when {
+                    filtered.isEmpty() -> ""
+                    value == null -> duration
+                    else -> value.coerceIn(1, 1_000_000).toString()
+                }
+            },
+            label = { Text("Duration [ms]") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth().testTag("StepDuration")
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -349,9 +374,10 @@ fun StepEditor(
                     step.request = if (trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)) request else ""
                     step.response = if (action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)) response else ""
                     step.previousStepName = if (trigger == StepTrigger.PreviousStep) previousStep else null
+                    step.durationMs = duration.toInt()
                     onSave(step)
                 },
-                enabled = requestValid && responseValid,
+                enabled = requestValid && responseValid && durationValid,
                 modifier = Modifier.weight(1f).testTag("StepSave")
             ) { Text("Save") }
             Button(
@@ -389,7 +415,8 @@ data class Step(
     var action: StepAction = StepAction.ServerResponse,
     var request: String = "",
     var response: String = "",
-    var previousStepName: String? = null
+    var previousStepName: String? = null,
+    var durationMs: Int = 1000
 )
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
@@ -540,7 +567,8 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         step.action.name,
                         step.request,
                         step.response,
-                        step.previousStepName ?: ""
+                        step.previousStepName ?: "",
+                        step.durationMs.toString()
                     ).joinToString(";")
                 }
                 scenario.name + "|" + stepString
@@ -559,13 +587,15 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         val request = sp.getOrElse(3) { "" }
                         val response = sp.getOrElse(4) { "" }
                         val prev = sp.getOrElse(5) { "" }
+                        val duration = sp.getOrElse(6) { "1000" }
                         Step(
                             stepName,
                             StepTrigger.valueOf(trigger),
                             StepAction.valueOf(action),
                             request,
                             response,
-                            prev.ifEmpty { null }
+                            prev.ifEmpty { null },
+                            duration.toIntOrNull() ?: 1000
                         )
                     }.toMutableStateList()
                 } else mutableStateListOf()

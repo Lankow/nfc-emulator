@@ -82,6 +82,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import android.content.res.ColorStateList
 import java.io.File
 import java.net.InetAddress
 import java.nio.ByteBuffer
@@ -134,7 +135,8 @@ fun <T> EnumSpinner(
     selected: T,
     labelMapper: (T) -> String,
     onSelected: (T) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -197,6 +199,7 @@ fun <T> EnumSpinner(
                         )
                         this.adapter = adapter
                         setSelection(selectedIndex)
+                        backgroundTintList = ColorStateList.valueOf(colors.primary.toArgb())
                         onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
                                 selectedIndex = position
@@ -213,12 +216,15 @@ fun <T> EnumSpinner(
                         }
                         setPopupBackgroundDrawable(popupBg)
                         doOnLayout { dropDownWidth = it.width }
+                        isEnabled = enabled
                     }
                 },
                 update = { spinner ->
                     selectedIndex = options.indexOf(selected)
                     spinner.setSelection(selectedIndex)
                     spinner.dropDownWidth = spinner.width
+                    spinner.backgroundTintList = ColorStateList.valueOf(colors.primary.toArgb())
+                    spinner.isEnabled = enabled
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -230,12 +236,30 @@ fun <T> EnumSpinner(
 fun StepEditor(
     modifier: Modifier = Modifier,
     step: Step,
+    availableSteps: List<Step> = emptyList(),
     onSave: (Step) -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(step.name) }
-    var trigger by remember { mutableStateOf(step.trigger) }
+    var trigger by remember {
+        mutableStateOf(
+            if (availableSteps.isEmpty() && step.trigger == StepTrigger.PreviousStep)
+                StepTrigger.ServerRequest else step.trigger
+        )
+    }
     var action by remember { mutableStateOf(step.action) }
+    var request by remember { mutableStateOf(step.request) }
+    var response by remember { mutableStateOf(step.response) }
+    val prevStepOptions = availableSteps.map { it.name }
+    var previousStep by remember { mutableStateOf(step.previousStepName ?: prevStepOptions.firstOrNull()) }
+
+    val triggerOptions = if (prevStepOptions.isEmpty()) {
+        StepTrigger.entries.filter { it != StepTrigger.PreviousStep }
+    } else StepTrigger.entries.toList()
+
+    val hexRegex = remember { Regex("^[0-9A-Fa-f]*$") }
+    val requestValid = trigger != StepTrigger.NfcRequest || (request.matches(hexRegex) && request.length % 2 == 0)
+    val responseValid = action != StepAction.NfcResponse || (response.matches(hexRegex) && response.length % 2 == 0)
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -254,12 +278,36 @@ fun StepEditor(
         Spacer(modifier = Modifier.height(8.dp))
         EnumSpinner(
             label = "Trigger",
-            options = StepTrigger.entries.toList(),
+            options = triggerOptions,
             selected = trigger,
             labelMapper = { it.label },
             onSelected = { trigger = it },
             modifier = Modifier.fillMaxWidth().testTag("TriggerSpinner")
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = request,
+            onValueChange = { input ->
+                val filtered = if (trigger == StepTrigger.NfcRequest) input.uppercase() else input
+                if (trigger != StepTrigger.NfcRequest || filtered.matches(hexRegex)) request = filtered
+            },
+            label = { Text("Request") },
+            isError = trigger == StepTrigger.NfcRequest && (request.isNotEmpty() && request.length % 2 != 0),
+            modifier = Modifier.fillMaxWidth(),
+            enabled = trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)
+        )
+        if (prevStepOptions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            EnumSpinner(
+                label = "Previous Step",
+                options = prevStepOptions,
+                selected = previousStep ?: prevStepOptions.first(),
+                labelMapper = { it },
+                onSelected = { previousStep = it },
+                modifier = Modifier.fillMaxWidth().testTag("PrevStepSpinner"),
+                enabled = trigger == StepTrigger.PreviousStep
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier
@@ -276,6 +324,18 @@ fun StepEditor(
             onSelected = { action = it },
             modifier = Modifier.fillMaxWidth().testTag("ActionSpinner")
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = response,
+            onValueChange = { input ->
+                val filtered = if (action == StepAction.NfcResponse) input.uppercase() else input
+                if (action != StepAction.NfcResponse || filtered.matches(hexRegex)) response = filtered
+            },
+            label = { Text("Response") },
+            isError = action == StepAction.NfcResponse && (response.isNotEmpty() && response.length % 2 != 0),
+            modifier = Modifier.fillMaxWidth(),
+            enabled = action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -286,8 +346,12 @@ fun StepEditor(
                     step.name = name
                     step.trigger = trigger
                     step.action = action
+                    step.request = if (trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)) request else ""
+                    step.response = if (action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)) response else ""
+                    step.previousStepName = if (trigger == StepTrigger.PreviousStep) previousStep else null
                     onSave(step)
                 },
+                enabled = requestValid && responseValid,
                 modifier = Modifier.weight(1f).testTag("StepSave")
             ) { Text("Save") }
             Button(
@@ -322,7 +386,10 @@ enum class StepAction(val label: String) {
 data class Step(
     var name: String,
     var trigger: StepTrigger = StepTrigger.ServerRequest,
-    var action: StepAction = StepAction.ServerResponse
+    var action: StepAction = StepAction.ServerResponse,
+    var request: String = "",
+    var response: String = "",
+    var previousStepName: String? = null
 )
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
@@ -467,7 +534,14 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
         save = { list ->
             list.map { scenario ->
                 val stepString = scenario.steps.joinToString(",") { step ->
-                    listOf(step.name, step.trigger.name, step.action.name).joinToString(";")
+                    listOf(
+                        step.name,
+                        step.trigger.name,
+                        step.action.name,
+                        step.request,
+                        step.response,
+                        step.previousStepName ?: ""
+                    ).joinToString(";")
                 }
                 scenario.name + "|" + stepString
             }
@@ -482,7 +556,17 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         val stepName = sp.getOrElse(0) { "" }
                         val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
                         val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
-                        Step(stepName, StepTrigger.valueOf(trigger), StepAction.valueOf(action))
+                        val request = sp.getOrElse(3) { "" }
+                        val response = sp.getOrElse(4) { "" }
+                        val prev = sp.getOrElse(5) { "" }
+                        Step(
+                            stepName,
+                            StepTrigger.valueOf(trigger),
+                            StepAction.valueOf(action),
+                            request,
+                            response,
+                            prev.ifEmpty { null }
+                        )
                     }.toMutableStateList()
                 } else mutableStateListOf()
                 Scenario(name, steps)
@@ -614,9 +698,13 @@ fun ScenarioEditor(
         val workingStep = remember(editingStepIndex) {
             if (isNewStep) Step("") else steps[editingStepIndex!!].copy()
         }
+        val available = remember(editingStepIndex, steps) {
+            steps.filterIndexed { index, _ -> index != editingStepIndex }
+        }
         StepEditor(
             modifier = modifier,
             step = workingStep,
+            availableSteps = available,
             onSave = { updated ->
                 if (isNewStep) steps.add(updated) else steps[editingStepIndex!!] = updated
                 editingStepIndex = null

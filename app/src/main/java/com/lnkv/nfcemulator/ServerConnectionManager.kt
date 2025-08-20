@@ -30,6 +30,7 @@ object ServerConnectionManager {
     private var currentIp: String? = null
     private var currentPort: Int? = null
     private var pollJob: Job? = null
+    private var lastResp: String? = null
 
     fun connect(context: Context, ip: String, port: Int, pollingMs: Long) {
         if (isProcessing) return
@@ -66,14 +67,16 @@ object ServerConnectionManager {
                         )
                         if (pollingMs > 0) {
                             pollJob?.cancel()
+                            lastResp = null
                             pollJob = scope.launch {
                                 while (true) {
                                     try {
                                         val resp = withContext(Dispatchers.IO) {
                                             URL("http://$ip:$port").readText()
                                         }
-                                        if (resp.isNotBlank()) {
+                                        if (resp.isNotBlank() && resp != lastResp) {
                                             CommunicationLog.add("GET RESP: $resp", true, true)
+                                            lastResp = resp
                                         }
                                     } catch (e: Exception) {
                                         CommunicationLog.add(
@@ -131,6 +134,7 @@ object ServerConnectionManager {
                 currentPort = null
                 pollJob?.cancel()
                 pollJob = null
+                lastResp = null
                 state = "Disconnected"
                 isProcessing = false
                 if (ip != null && port != null) {

@@ -11,7 +11,8 @@ object CommunicationLog {
     data class Entry(
         val message: String,
         val isServer: Boolean,
-        val isSuccess: Boolean? = null
+        val isSuccess: Boolean? = null,
+        val timestamp: Long = System.currentTimeMillis()
     )
 
     private val _entries = MutableStateFlow<List<Entry>>(emptyList())

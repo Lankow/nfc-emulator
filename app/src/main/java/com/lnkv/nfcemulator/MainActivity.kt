@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -123,6 +124,8 @@ class MainActivity : ComponentActivity() {
                 ServerConnectionManager.connect(this, host, port, poll)
             }
         }
+
+        ScenarioManager.load(this)
 
         setContent {
             NFCEmulatorTheme {
@@ -555,6 +558,7 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
 fun MainScreen() {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }
     val logEntries by CommunicationLog.entries.collectAsState()
+    val currentScenario by ScenarioManager.current.collectAsState()
 
     androidx.compose.material3.Scaffold(
         bottomBar = {
@@ -578,7 +582,7 @@ fun MainScreen() {
     ) { padding ->
           when (currentScreen) {
               Screen.Communication ->
-                  CommunicationScreen(logEntries, Modifier.padding(padding))
+                  CommunicationScreen(logEntries, currentScenario, Modifier.padding(padding))
               Screen.Scenario ->
                   ScenarioScreen(Modifier.padding(padding))
               Screen.Server ->
@@ -595,6 +599,7 @@ fun MainScreen() {
 @Composable
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
+    currentScenario: String?,
     modifier: Modifier = Modifier
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
@@ -627,6 +632,8 @@ fun CommunicationScreen(
             ) { Text("NFC") }
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Current Scenario: ${currentScenario ?: "None"}")
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier
@@ -691,6 +698,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
     var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var deleteIndex by remember { mutableStateOf<Int?>(null) }
 
     if (editingIndex != null) {
         val isNew = editingIndex == -1
@@ -724,8 +732,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(scenarios) { index, scenario ->
                         val isSelected = selectedIndex == index
-                        Text(
-                            scenario.name,
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
@@ -735,8 +742,30 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                                 )
                                 .clickable { selectedIndex = index }
                                 .padding(12.dp)
-                                .testTag("ScenarioItem$index")
-                        )
+                                .testTag("ScenarioItem$index"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                scenario.name,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                IconButton(
+                                    onClick = {
+                                        ScenarioManager.setCurrent(context, scenario.name)
+                                    },
+                                    modifier = Modifier.testTag("ScenarioPlay$index")
+                                ) {
+                                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
+                                }
+                                IconButton(
+                                    onClick = { deleteIndex = index },
+                                    modifier = Modifier.testTag("ScenarioDelete$index")
+                                ) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -788,6 +817,27 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     Button(onClick = { showClearDialog = false }) { Text("Cancel") }
                 },
                 text = { Text("Clear all scenarios?") }
+            )
+        }
+        if (deleteIndex != null) {
+            val name = scenarios[deleteIndex!!].name
+            AlertDialog(
+                onDismissRequest = { deleteIndex = null },
+                confirmButton = {
+                    Button(onClick = {
+                        val removed = scenarios.removeAt(deleteIndex!!)
+                        if (ScenarioManager.current.value == removed.name) {
+                            ScenarioManager.setCurrent(context, null)
+                        }
+                        deleteIndex = null
+                        selectedIndex = null
+                        saveScenarios(context, scenarios)
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    Button(onClick = { deleteIndex = null }) { Text("Cancel") }
+                },
+                text = { Text("Delete scenario \"$name\"?") }
             )
         }
     }
@@ -1319,7 +1369,11 @@ private fun CommunicationLogList(
                         false -> Color.Red
                         null -> Color.Unspecified
                     }
-                    Text(entry.message, color = color)
+                    val time = remember(entry.timestamp) {
+                        java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+                            .format(java.util.Date(entry.timestamp))
+                    }
+                    Text("[$time] ${entry.message}", color = color)
                 }
             }
         }

@@ -6,6 +6,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.wifi.WifiManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.nfc.NfcAdapter
 import android.nfc.cardemulation.CardEmulation
 import android.os.Bundle
@@ -1110,9 +1112,13 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                                 ).show()
                             } else {
                                 try {
-                                    val wifiManager =
-                                        context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                                    if (wifiManager.connectionInfo.networkId == -1) {
+                                    val connectivityManager =
+                                        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                                    val wifiConnected =
+                                        connectivityManager.getNetworkCapabilities(
+                                            connectivityManager.activeNetwork
+                                        )?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                                    if (!wifiConnected) {
                                         Toast.makeText(
                                             context,
                                             "Not connected to Wi-Fi",

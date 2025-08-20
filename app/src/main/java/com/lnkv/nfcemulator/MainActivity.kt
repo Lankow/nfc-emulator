@@ -118,8 +118,9 @@ class MainActivity : ComponentActivity() {
             val ipPort = serverPrefs.getString("ip", "0.0.0.0:0000")!!
             val host = ipPort.substringBefore(":")
             val port = ipPort.substringAfter(":").toIntOrNull()
+            val poll = serverPrefs.getString("pollingTime", "0")!!.toLongOrNull() ?: 0
             if (port != null) {
-                ServerConnectionManager.connect(this, host, port)
+                ServerConnectionManager.connect(this, host, port, poll)
             }
         }
 
@@ -635,8 +636,8 @@ fun CommunicationScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        val serverEntries = entries.filter { it.isRequest }
-        val nfcEntries = entries.filter { !it.isRequest }
+        val serverEntries = entries.filter { it.isServer }
+        val nfcEntries = entries.filter { !it.isServer }
 
         if (showServer) {
             CommunicationLogList(
@@ -942,7 +943,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     val prefs = context.getSharedPreferences("server_prefs", Context.MODE_PRIVATE)
     var isExternal by rememberSaveable { mutableStateOf(prefs.getBoolean("isExternal", true)) }
     var ip by rememberSaveable { mutableStateOf(prefs.getString("ip", "0.0.0.0:0000")!!) }
-    var pollingTime by rememberSaveable { mutableStateOf(prefs.getString("pollingTime", "")!!) }
+    var pollingTime by rememberSaveable { mutableStateOf(prefs.getString("pollingTime", "0")!!) }
     var autoConnect by rememberSaveable { mutableStateOf(prefs.getBoolean("autoConnect", false)) }
     val serverState = ServerConnectionManager.state
     val isProcessing = ServerConnectionManager.isProcessing
@@ -1122,7 +1123,8 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                                 ServerConnectionManager.connect(
                                     context,
                                     ip.substringBefore(":"),
-                                    portPart
+                                    portPart,
+                                    pollingTime.toLong()
                                 )
                             }
                         }
@@ -1312,7 +1314,11 @@ private fun CommunicationLogList(
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(entries) { entry ->
-                    val color = if (entry.isRequest) Color.Red else Color.Green
+                    val color = when (entry.isSuccess) {
+                        true -> Color.Green
+                        false -> Color.Red
+                        null -> Color.Unspecified
+                    }
                     Text(entry.message, color = color)
                 }
             }

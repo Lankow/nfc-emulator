@@ -21,7 +21,7 @@ class TypeAEmulatorService : HostApduService() {
 
         val apduHex = commandApdu.toHex()
         Log.d(TAG, "APDU: $apduHex")
-        CommunicationLog.add("REQ: $apduHex", true)
+        CommunicationLog.add("REQ: $apduHex", false)
 
         val response = if (isSelectCommand(commandApdu)) SELECT_OK else UNKNOWN_COMMAND
         CommunicationLog.add("RESP: ${response.toHex()}", false)

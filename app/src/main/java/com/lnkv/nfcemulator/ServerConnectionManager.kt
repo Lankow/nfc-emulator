@@ -8,12 +8,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.URL
 
 object ServerConnectionManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -26,8 +29,9 @@ object ServerConnectionManager {
     private var socket: Socket? = null
     private var currentIp: String? = null
     private var currentPort: Int? = null
+    private var pollJob: Job? = null
 
-    fun connect(context: Context, ip: String, port: Int) {
+    fun connect(context: Context, ip: String, port: Int, pollingMs: Long) {
         if (isProcessing) return
         currentIp = ip
         currentPort = port
@@ -41,7 +45,11 @@ object ServerConnectionManager {
                     ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
                 if (!wifiConnected) {
                     state = "Disconnected"
-                    CommunicationLog.add("STATE-EXT: Server Connection $ip:$port Failed.", true)
+                    CommunicationLog.add(
+                        "STATE-EXT: Server Connection $ip:$port Failed.",
+                        true,
+                        false
+                    )
                 } else {
                     try {
                         val s = withContext(Dispatchers.IO) {
@@ -51,15 +59,46 @@ object ServerConnectionManager {
                         }
                         socket = s
                         state = "Connected"
-                        CommunicationLog.add("STATE-EXT: Server Connection $ip:$port Success.", true)
+                        CommunicationLog.add(
+                            "STATE-EXT: Server Connection $ip:$port Success.",
+                            true,
+                            true
+                        )
+                        if (pollingMs > 0) {
+                            pollJob?.cancel()
+                            pollJob = scope.launch {
+                                while (true) {
+                                    try {
+                                        val resp = withContext(Dispatchers.IO) {
+                                            URL("http://$ip:$port").readText()
+                                        }
+                                        if (resp.isNotBlank()) {
+                                            CommunicationLog.add("GET RESP: $resp", true, true)
+                                        }
+                                    } catch (e: Exception) {
+                                        CommunicationLog.add(
+                                            "STATE-EXT: GET Error (${e.message}).",
+                                            true,
+                                            false
+                                        )
+                                    }
+                                    delay(pollingMs)
+                                }
+                            }
+                        }
                     } catch (e: IOException) {
                         state = "Connection Failed"
-                        CommunicationLog.add("STATE-EXT: Server Connection $ip:$port Failed.", true)
+                        CommunicationLog.add(
+                            "STATE-EXT: Server Connection $ip:$port Failed.",
+                            true,
+                            false
+                        )
                     } catch (e: Exception) {
                         state = "Encountered Error (${e.message})"
                         CommunicationLog.add(
                             "STATE-EXT: Server Connection $ip:$port Error (${e.message}).",
-                            true
+                            true,
+                            false
                         )
                     }
                 }
@@ -67,7 +106,8 @@ object ServerConnectionManager {
                 state = "Encountered Error (${e.message})"
                 CommunicationLog.add(
                     "STATE-EXT: Server Connection $ip:$port Error (${e.message}).",
-                    true
+                    true,
+                    false
                 )
             } finally {
                 isProcessing = false
@@ -89,15 +129,22 @@ object ServerConnectionManager {
                 socket = null
                 currentIp = null
                 currentPort = null
+                pollJob?.cancel()
+                pollJob = null
                 state = "Disconnected"
                 isProcessing = false
                 if (ip != null && port != null) {
                     CommunicationLog.add(
                         "STATE-EXT: Server Connection $ip:$port Disconnected.",
-                        true
+                        true,
+                        false
                     )
                 } else {
-                    CommunicationLog.add("STATE-EXT: Server Connection Disconnected.", true)
+                    CommunicationLog.add(
+                        "STATE-EXT: Server Connection Disconnected.",
+                        true,
+                        false
+                    )
                 }
             }
         }

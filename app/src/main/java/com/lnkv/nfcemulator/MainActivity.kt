@@ -6,8 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.wifi.WifiManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.nfc.NfcAdapter
 import android.nfc.cardemulation.CardEmulation
 import android.os.Bundle
@@ -89,12 +87,6 @@ import java.io.File
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.Socket
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
@@ -118,6 +110,18 @@ class MainActivity : ComponentActivity() {
 
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
         registerAids(storedAids)
+
+        val serverPrefs = getSharedPreferences("server_prefs", MODE_PRIVATE)
+        if (serverPrefs.getBoolean("isExternal", true) &&
+            serverPrefs.getBoolean("autoConnect", false)
+        ) {
+            val ipPort = serverPrefs.getString("ip", "0.0.0.0:0000")!!
+            val host = ipPort.substringBefore(":")
+            val port = ipPort.substringAfter(":").toIntOrNull()
+            if (port != null) {
+                ServerConnectionManager.connect(this, host, port)
+            }
+        }
 
         setContent {
             NFCEmulatorTheme {
@@ -940,7 +944,8 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     var ip by rememberSaveable { mutableStateOf(prefs.getString("ip", "0.0.0.0:0000")!!) }
     var pollingTime by rememberSaveable { mutableStateOf(prefs.getString("pollingTime", "")!!) }
     var autoConnect by rememberSaveable { mutableStateOf(prefs.getBoolean("autoConnect", false)) }
-    var serverState by rememberSaveable { mutableStateOf("Disconnected") }
+    val serverState by ServerConnectionManager.state
+    val isProcessing = ServerConnectionManager.isProcessing
     var port by rememberSaveable { mutableStateOf(prefs.getString("port", "0000")!!) }
     var staticPort by rememberSaveable { mutableStateOf(prefs.getBoolean("staticPort", false)) }
     var autoStart by rememberSaveable { mutableStateOf(prefs.getBoolean("autoStart", false)) }
@@ -949,8 +954,6 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     val localIp = remember { getLocalIpAddress(context) }
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}:(\\d{1,5})$")
-    val scope = rememberCoroutineScope()
-    var socket by remember { mutableStateOf<Socket?>(null) }
 
     val segColors = SegmentedButtonDefaults.colors(
         activeContainerColor = MaterialTheme.colorScheme.primary,
@@ -965,14 +968,20 @@ fun ServerScreen(modifier: Modifier = Modifier) {
         ) {
             SegmentedButton(
                 selected = isExternal,
-                onClick = { isExternal = true },
+                onClick = {
+                    isExternal = true
+                    prefs.edit().putBoolean("isExternal", true).apply()
+                },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                 colors = segColors,
                 modifier = Modifier.testTag("ExternalToggle")
             ) { Text("External") }
             SegmentedButton(
                 selected = !isExternal,
-                onClick = { isExternal = false },
+                onClick = {
+                    isExternal = false
+                    prefs.edit().putBoolean("isExternal", false).apply()
+                },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                 colors = segColors,
                 modifier = Modifier.testTag("InternalToggle")
@@ -998,7 +1007,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
-                enabled = serverState != "Connected",
+                enabled = serverState != "Connected" && !isProcessing,
                 trailingIcon = {
                     IconButton(onClick = { ip = "" }, modifier = Modifier.testTag("IpClear")) {
                         Icon(Icons.Filled.Delete, contentDescription = "Clear IP")
@@ -1034,7 +1043,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 isError = pollingTime.isNotEmpty() && pollingTime.toInt() < 10,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().testTag("PollingField"),
-                enabled = serverState != "Connected",
+                enabled = serverState != "Connected" && !isProcessing,
                 trailingIcon = {
                     IconButton(onClick = { pollingTime = "" }, modifier = Modifier.testTag("PollingClear")) {
                         Icon(Icons.Filled.Delete, contentDescription = "Clear Polling Time")
@@ -1045,9 +1054,12 @@ fun ServerScreen(modifier: Modifier = Modifier) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircleCheckbox(
                     checked = autoConnect,
-                    onCheckedChange = { autoConnect = it },
+                    onCheckedChange = {
+                        autoConnect = it
+                        prefs.edit().putBoolean("autoConnect", it).apply()
+                    },
                     modifier = Modifier.testTag("AutoConnectCheck"),
-                    enabled = serverState != "Connected"
+                    enabled = serverState != "Connected" && !isProcessing
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Connect Automatically")
@@ -1077,7 +1089,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                             .apply()
                         Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
                     },
-                    enabled = serverState != "Connected",
+                    enabled = serverState != "Connected" && !isProcessing,
                     modifier = Modifier.weight(1f).testTag("SaveServer")
                 ) {
                     Text("Save")
@@ -1085,11 +1097,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 Button(
                     onClick = {
                         if (serverState == "Connected") {
-                            try {
-                                socket?.close()
-                            } catch (_: Exception) {}
-                            socket = null
-                            serverState = "Disconnected"
+                            ServerConnectionManager.disconnect()
                         } else if (ip.isBlank() || pollingTime.isBlank()) {
                             Toast.makeText(
                                 context,
@@ -1111,46 +1119,15 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                try {
-                                    val connectivityManager =
-                                        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                                    val wifiConnected =
-                                        connectivityManager.getNetworkCapabilities(
-                                            connectivityManager.activeNetwork
-                                        )?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-                                    if (!wifiConnected) {
-                                        Toast.makeText(
-                                            context,
-                                            "Not connected to Wi-Fi",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                        serverState = "Disconnected"
-                                    } else {
-                                        scope.launch {
-                                            try {
-                                                val s = withContext(Dispatchers.IO) {
-                                                    Socket().apply {
-                                                        connect(
-                                                            InetSocketAddress(ip.substringBefore(":"), portPart),
-                                                            5000
-                                                        )
-                                                    }
-                                                }
-                                                socket = s
-                                                serverState = "Connected"
-                                            } catch (e: IOException) {
-                                                serverState = "Connection Failed"
-                                            } catch (e: Exception) {
-                                                serverState = "Encountered Error (${e.message})"
-                                            }
-                                        }
-                                    }
-                                } catch (e: SecurityException) {
-                                    serverState = "Encountered Error (${e.message})"
-                                }
+                                ServerConnectionManager.connect(
+                                    context,
+                                    ip.substringBefore(":"),
+                                    portPart
+                                )
                             }
                         }
                     },
+                    enabled = !isProcessing,
                     modifier = Modifier.weight(1f).testTag("ConnectButton")
                 ) {
                     Text(if (serverState == "Connected") "Disconnect" else "Connect")

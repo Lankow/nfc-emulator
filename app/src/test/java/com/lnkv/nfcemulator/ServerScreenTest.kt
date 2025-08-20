@@ -14,10 +14,19 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.performClick
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Before
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 
 class ServerScreenTest {
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Before
+    fun setup() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("server_prefs", Context.MODE_PRIVATE).edit().clear().apply()
+    }
 
     @Test
     fun ipClearWorks() {
@@ -75,23 +84,23 @@ class ServerScreenTest {
     }
 
     @Test
-    fun connectButtonTogglesState() {
+    fun connectButtonRequiresWifi() {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
-        composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Connected")
-        composeTestRule.onNodeWithTag("ConnectButton").performClick()
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
     }
 
     @Test
-    fun externalFieldsDisabledWhenConnected() {
+    fun externalFieldsRemainEnabledOnFailedConnection() {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
-        composeTestRule.onNodeWithTag("IpField").assertIsNotEnabled()
-        composeTestRule.onNodeWithTag("PollingField").assertIsNotEnabled()
-        composeTestRule.onNodeWithTag("AutoConnectCheck").assertIsNotEnabled()
-        composeTestRule.onNodeWithTag("SaveServer").assertIsNotEnabled()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("IpField").assertIsEnabled()
+        composeTestRule.onNodeWithTag("PollingField").assertIsEnabled()
+        composeTestRule.onNodeWithTag("AutoConnectCheck").assertIsEnabled()
+        composeTestRule.onNodeWithTag("SaveServer").assertIsEnabled()
     }
 
     @Test
@@ -100,6 +109,7 @@ class ServerScreenTest {
         composeTestRule.onNodeWithTag("IpClear").performClick()
         composeTestRule.onNodeWithTag("PollingClear").performClick()
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
     }
 
@@ -110,6 +120,7 @@ class ServerScreenTest {
         field.performTextClearance()
         field.performTextInput("192.168.0.1")
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
     }
 

@@ -27,9 +27,9 @@ class TypeAEmulatorServiceTest {
         assertArrayEquals(byteArrayOf(0x90.toByte(), 0x00.toByte()), response)
         val entries = CommunicationLog.entries.value
         assertEquals("REQ: 00A40400", entries[0].message)
-        assertEquals(true, entries[0].isRequest)
+        assertEquals(false, entries[0].isServer)
         assertEquals("RESP: 9000", entries[1].message)
-        assertEquals(false, entries[1].isRequest)
+        assertEquals(false, entries[1].isServer)
     }
 
     @Test

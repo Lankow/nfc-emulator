@@ -8,7 +8,12 @@ import java.io.File
  * Holds APDU communication logs between the external reader and the emulator.
  */
 object CommunicationLog {
-    data class Entry(val message: String, val isRequest: Boolean)
+    data class Entry(
+        val message: String,
+        val isServer: Boolean,
+        val isSuccess: Boolean? = null,
+        val timestamp: Long = System.currentTimeMillis()
+    )
 
     private val _entries = MutableStateFlow<List<Entry>>(emptyList())
     val entries = _entries.asStateFlow()
@@ -16,10 +21,11 @@ object CommunicationLog {
     /**
      * Appends a new log entry.
      * @param message Hex representation of APDU data.
-     * @param isRequest True if the message came from the external reader.
+     * @param isServer True if the message came from the server side.
+     * @param isSuccess Optional flag indicating success or failure for colored logs.
      */
-    fun add(message: String, isRequest: Boolean) {
-        _entries.value = _entries.value + Entry(message, isRequest)
+    fun add(message: String, isServer: Boolean, isSuccess: Boolean? = null) {
+        _entries.value = _entries.value + Entry(message, isServer, isSuccess)
     }
 
     /**

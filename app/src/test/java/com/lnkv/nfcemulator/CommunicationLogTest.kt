@@ -20,7 +20,8 @@ class CommunicationLogTest {
         CommunicationLog.add("DATA", true)
         val entries = CommunicationLog.entries.value
         assertEquals(1, entries.size)
-        assertEquals(CommunicationLog.Entry("DATA", true), entries[0])
+        assertEquals("DATA", entries[0].message)
+        assertEquals(true, entries[0].isServer)
     }
 
     @Test

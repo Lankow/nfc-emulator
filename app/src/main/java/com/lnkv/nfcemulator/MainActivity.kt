@@ -944,7 +944,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     var ip by rememberSaveable { mutableStateOf(prefs.getString("ip", "0.0.0.0:0000")!!) }
     var pollingTime by rememberSaveable { mutableStateOf(prefs.getString("pollingTime", "")!!) }
     var autoConnect by rememberSaveable { mutableStateOf(prefs.getBoolean("autoConnect", false)) }
-    val serverState by ServerConnectionManager.state
+    val serverState = ServerConnectionManager.state
     val isProcessing = ServerConnectionManager.isProcessing
     var port by rememberSaveable { mutableStateOf(prefs.getString("port", "0000")!!) }
     var staticPort by rememberSaveable { mutableStateOf(prefs.getBoolean("staticPort", false)) }

@@ -75,23 +75,21 @@ class ServerScreenTest {
     }
 
     @Test
-    fun connectButtonTogglesState() {
+    fun connectButtonRequiresWifi() {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
-        composeTestRule.onNodeWithTag("ConnectButton").performClick()
-        composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Connected")
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
         composeTestRule.onNodeWithTag("ServerState").assertTextEquals("Server State: Disconnected")
     }
 
     @Test
-    fun externalFieldsDisabledWhenConnected() {
+    fun externalFieldsRemainEnabledOnFailedConnection() {
         composeTestRule.setContent { ServerScreen() }
         composeTestRule.onNodeWithTag("ConnectButton").performClick()
-        composeTestRule.onNodeWithTag("IpField").assertIsNotEnabled()
-        composeTestRule.onNodeWithTag("PollingField").assertIsNotEnabled()
-        composeTestRule.onNodeWithTag("AutoConnectCheck").assertIsNotEnabled()
-        composeTestRule.onNodeWithTag("SaveServer").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("IpField").assertIsEnabled()
+        composeTestRule.onNodeWithTag("PollingField").assertIsEnabled()
+        composeTestRule.onNodeWithTag("AutoConnectCheck").assertIsEnabled()
+        composeTestRule.onNodeWithTag("SaveServer").assertIsEnabled()
     }
 
     @Test

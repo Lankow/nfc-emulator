@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertExists
 import org.junit.Rule
 import org.junit.Test
@@ -18,6 +19,9 @@ class ScenarioScreenTest {
     fun editButtonEnabledWhenScenarioSelected() {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioEdit").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioSave").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
         composeTestRule.onNodeWithTag("ScenarioEdit").assertIsEnabled()
     }

@@ -38,8 +38,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.toMutableStateList
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
@@ -87,6 +87,12 @@ import java.io.File
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.IOException
+import java.net.InetSocketAddress
+import java.net.Socket
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
 
@@ -478,6 +484,65 @@ data class Step(
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
 
+private const val SCENARIO_PREFS = "scenario_prefs"
+private const val SCENARIO_KEY = "scenarios"
+
+private fun saveScenarios(context: Context, scenarios: List<Scenario>) {
+    val serialized = scenarios.map { scenario ->
+        val stepString = scenario.steps.joinToString(",") { step ->
+            listOf(
+                step.name,
+                step.trigger.name,
+                step.action.name,
+                step.request,
+                step.response,
+                step.previousStepName ?: "",
+                step.durationMs.toString(),
+                step.delayMode.name,
+                step.occurrences.toString()
+            ).joinToString(";")
+        }
+        scenario.name + "|" + stepString
+    }.toSet()
+    val prefs = context.getSharedPreferences(SCENARIO_PREFS, Context.MODE_PRIVATE)
+    prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()
+}
+
+private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
+    val prefs = context.getSharedPreferences(SCENARIO_PREFS, Context.MODE_PRIVATE)
+    val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet())!!
+    return serialized.map { line ->
+        val parts = line.split("|", limit = 2)
+        val name = parts[0]
+        val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
+            parts[1].split(",").map { stepStr ->
+                val sp = stepStr.split(";")
+                val stepName = sp.getOrElse(0) { "" }
+                val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
+                val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
+                val request = sp.getOrElse(3) { "" }
+                val response = sp.getOrElse(4) { "" }
+                val prev = sp.getOrElse(5) { "" }
+                val duration = sp.getOrElse(6) { "1000" }
+                val mode = sp.getOrElse(7) { DelayMode.Duration.name }
+                val occurrences = sp.getOrElse(8) { "1" }
+                Step(
+                    stepName,
+                    StepTrigger.valueOf(trigger),
+                    StepAction.valueOf(action),
+                    request,
+                    response,
+                    prev.ifEmpty { null },
+                    duration.toIntOrNull() ?: 1000,
+                    DelayMode.valueOf(mode),
+                    occurrences.toIntOrNull() ?: 1
+                )
+            }.toMutableStateList()
+        } else mutableStateListOf()
+        Scenario(name, steps)
+    }.toMutableStateList()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
@@ -614,64 +679,8 @@ fun CommunicationScreen(
 
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier) {
-    val scenariosSaver = Saver<SnapshotStateList<Scenario>, List<String>>(
-        save = { list ->
-            list.map { scenario ->
-                val stepString = scenario.steps.joinToString(",") { step ->
-                    listOf(
-                        step.name,
-                        step.trigger.name,
-                        step.action.name,
-                        step.request,
-                        step.response,
-                        step.previousStepName ?: "",
-                        step.durationMs.toString(),
-                        step.delayMode.name,
-                        step.occurrences.toString()
-                    ).joinToString(";")
-                }
-                scenario.name + "|" + stepString
-            }
-        },
-        restore = { serialized ->
-            serialized.map { line ->
-                val parts = line.split("|", limit = 2)
-                val name = parts[0]
-                val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
-                    parts[1].split(",").map { stepStr ->
-                        val sp = stepStr.split(";")
-                        val stepName = sp.getOrElse(0) { "" }
-                        val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
-                        val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
-                        val request = sp.getOrElse(3) { "" }
-                        val response = sp.getOrElse(4) { "" }
-                        val prev = sp.getOrElse(5) { "" }
-                        val duration = sp.getOrElse(6) { "1000" }
-                        val mode = sp.getOrElse(7) { DelayMode.Duration.name }
-                        val occurrences = sp.getOrElse(8) { "1" }
-                        Step(
-                            stepName,
-                            StepTrigger.valueOf(trigger),
-                            StepAction.valueOf(action),
-                            request,
-                            response,
-                            prev.ifEmpty { null },
-                            duration.toIntOrNull() ?: 1000,
-                            DelayMode.valueOf(mode),
-                            occurrences.toIntOrNull() ?: 1
-                        )
-                    }.toMutableStateList()
-                } else mutableStateListOf()
-                Scenario(name, steps)
-            }.toMutableStateList()
-        }
-    )
-    val scenarios = rememberSaveable(saver = scenariosSaver) {
-        mutableStateListOf(
-            Scenario("Scenario 1"),
-            Scenario("Scenario 2")
-        )
-    }
+    val context = LocalContext.current
+    val scenarios = remember { loadScenarios(context) }
     var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
@@ -745,7 +754,10 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { /* TODO save scenarios */ },
+                    onClick = {
+                        saveScenarios(context, scenarios)
+                        Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                    },
                     modifier = Modifier.weight(1f).testTag("ScenarioSave")
                 ) { Text("Save") }
                 Button(
@@ -762,6 +774,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         scenarios.clear()
                         selectedIndex = null
                         showClearDialog = false
+                        saveScenarios(context, scenarios)
                     }) { Text("OK") }
                 },
                 dismissButton = {
@@ -919,20 +932,23 @@ private fun getLocalIpAddress(context: Context): String? {
 
 @Composable
 fun ServerScreen(modifier: Modifier = Modifier) {
-    var isExternal by rememberSaveable { mutableStateOf(true) }
-    var ip by rememberSaveable { mutableStateOf("192.168.0.1:8080") }
-    var pollingTime by rememberSaveable { mutableStateOf("100") }
-    var autoConnect by rememberSaveable { mutableStateOf(false) }
-    var isServerConnected by rememberSaveable { mutableStateOf(false) }
-    var port by rememberSaveable { mutableStateOf("8080") }
-    var staticPort by rememberSaveable { mutableStateOf(false) }
-    var autoStart by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("server_prefs", Context.MODE_PRIVATE)
+    var isExternal by rememberSaveable { mutableStateOf(prefs.getBoolean("isExternal", true)) }
+    var ip by rememberSaveable { mutableStateOf(prefs.getString("ip", "0.0.0.0:0000")!!) }
+    var pollingTime by rememberSaveable { mutableStateOf(prefs.getString("pollingTime", "")!!) }
+    var autoConnect by rememberSaveable { mutableStateOf(prefs.getBoolean("autoConnect", false)) }
+    var serverState by rememberSaveable { mutableStateOf("Disconnected") }
+    var port by rememberSaveable { mutableStateOf(prefs.getString("port", "0000")!!) }
+    var staticPort by rememberSaveable { mutableStateOf(prefs.getBoolean("staticPort", false)) }
+    var autoStart by rememberSaveable { mutableStateOf(prefs.getBoolean("autoStart", false)) }
     var isServerRunning by rememberSaveable { mutableStateOf(false) }
     val connectedDevices = remember { mutableStateListOf<String>() }
-    val context = LocalContext.current
     val localIp = remember { getLocalIpAddress(context) }
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}:(\\d{1,5})$")
+    val scope = rememberCoroutineScope()
+    var socket by remember { mutableStateOf<Socket?>(null) }
 
     val segColors = SegmentedButtonDefaults.colors(
         activeContainerColor = MaterialTheme.colorScheme.primary,
@@ -980,7 +996,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
-                enabled = !isServerConnected,
+                enabled = serverState != "Connected",
                 trailingIcon = {
                     IconButton(onClick = { ip = "" }, modifier = Modifier.testTag("IpClear")) {
                         Icon(Icons.Filled.Delete, contentDescription = "Clear IP")
@@ -1016,7 +1032,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 isError = pollingTime.isNotEmpty() && pollingTime.toInt() < 10,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().testTag("PollingField"),
-                enabled = !isServerConnected,
+                enabled = serverState != "Connected",
                 trailingIcon = {
                     IconButton(onClick = { pollingTime = "" }, modifier = Modifier.testTag("PollingClear")) {
                         Icon(Icons.Filled.Delete, contentDescription = "Clear Polling Time")
@@ -1029,7 +1045,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                     checked = autoConnect,
                     onCheckedChange = { autoConnect = it },
                     modifier = Modifier.testTag("AutoConnectCheck"),
-                    enabled = !isServerConnected
+                    enabled = serverState != "Connected"
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Connect Automatically")
@@ -1039,7 +1055,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 buildAnnotatedString {
                     append("Server State: ")
                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                        append(if (isServerConnected) "Connected" else "Disconnected")
+                        append(serverState)
                     }
                 },
                 modifier = Modifier.testTag("ServerState")
@@ -1051,16 +1067,28 @@ fun ServerScreen(modifier: Modifier = Modifier) {
             ) {
                 Button(
                     onClick = {
+                        prefs.edit()
+                            .putBoolean("isExternal", isExternal)
+                            .putString("ip", ip)
+                            .putString("pollingTime", pollingTime)
+                            .putBoolean("autoConnect", autoConnect)
+                            .apply()
                         Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
                     },
-                    enabled = !isServerConnected,
+                    enabled = serverState != "Connected",
                     modifier = Modifier.weight(1f).testTag("SaveServer")
                 ) {
                     Text("Save")
                 }
                 Button(
                     onClick = {
-                        if (ip.isBlank() || pollingTime.isBlank()) {
+                        if (serverState == "Connected") {
+                            try {
+                                socket?.close()
+                            } catch (_: Exception) {}
+                            socket = null
+                            serverState = "Disconnected"
+                        } else if (ip.isBlank() || pollingTime.isBlank()) {
                             Toast.makeText(
                                 context,
                                 "Server IP and Polling Time must be provided",
@@ -1081,13 +1109,41 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                isServerConnected = !isServerConnected
+                                val wifiManager =
+                                    context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                                if (wifiManager.connectionInfo.networkId == -1) {
+                                    Toast.makeText(
+                                        context,
+                                        "Not connected to Wi-Fi",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    serverState = "Disconnected"
+                                } else {
+                                    scope.launch {
+                                        try {
+                                            val s = withContext(Dispatchers.IO) {
+                                                Socket().apply {
+                                                    connect(
+                                                        InetSocketAddress(ip.substringBefore(":"), portPart),
+                                                        5000
+                                                    )
+                                                }
+                                            }
+                                            socket = s
+                                            serverState = "Connected"
+                                        } catch (e: IOException) {
+                                            serverState = "Connection Failed"
+                                        } catch (e: Exception) {
+                                            serverState = "Encountered Error (${e.message})"
+                                        }
+                                    }
+                                }
                             }
                         }
                     },
                     modifier = Modifier.weight(1f).testTag("ConnectButton")
                 ) {
-                    Text(if (isServerConnected) "Disconnect" else "Connect")
+                    Text(if (serverState == "Connected") "Disconnect" else "Connect")
                 }
             }
         } else {
@@ -1160,6 +1216,12 @@ fun ServerScreen(modifier: Modifier = Modifier) {
             ) {
                 Button(
                     onClick = {
+                        prefs.edit()
+                            .putBoolean("isExternal", isExternal)
+                            .putString("port", port)
+                            .putBoolean("staticPort", staticPort)
+                            .putBoolean("autoStart", autoStart)
+                            .apply()
                         Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
                     },
                     enabled = !isServerRunning,

@@ -21,7 +21,7 @@ class CommunicationScreenTest {
         )
 
         composeTestRule.setContent {
-            CommunicationScreen(entries, currentScenario = null)
+            CommunicationScreen(entries, currentScenario = null, onClearScenario = {})
         }
 
         composeTestRule.onNodeWithText("0102", substring = true).assertExists()
@@ -36,7 +36,7 @@ class CommunicationScreenTest {
         )
 
         composeTestRule.setContent {
-            CommunicationScreen(entries, currentScenario = null)
+            CommunicationScreen(entries, currentScenario = null, onClearScenario = {})
         }
 
         val heightBoth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.height
@@ -49,7 +49,7 @@ class CommunicationScreenTest {
 
     @Test
     fun dividerMatchesLogWidth() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
 
         val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
         val dividerWidth = composeTestRule.onNodeWithTag("ToggleDivider").fetchSemanticsNode().size.width
@@ -59,14 +59,14 @@ class CommunicationScreenTest {
 
     @Test
     fun actionButtonsDisplayed() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
         composeTestRule.onNodeWithTag("SaveButton").assertExists()
         composeTestRule.onNodeWithTag("ClearButton").assertExists()
     }
 
     @Test
     fun actionButtonsMatchLogWidth() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
 
         val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
         val spacing = with(composeTestRule.density) { 8.dp.roundToPx() }
@@ -80,7 +80,7 @@ class CommunicationScreenTest {
 
     @Test
     fun segmentsFillWidth() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
 
         val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
         val expectedWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
@@ -91,9 +91,17 @@ class CommunicationScreenTest {
 
     @Test
     fun lastSegmentDisables() {
-        composeTestRule.setContent { CommunicationScreen(emptyList()) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
         composeTestRule.onNodeWithTag("NfcToggle").performClick()
         composeTestRule.onNodeWithTag("ServerToggle").assertIsNotEnabled()
+    }
+
+    @Test
+    fun scenarioClearButtonShown() {
+        composeTestRule.setContent {
+            CommunicationScreen(emptyList(), currentScenario = "S1", onClearScenario = {})
+        }
+        composeTestRule.onNodeWithTag("ScenarioClearButton").assertExists()
     }
 }
 

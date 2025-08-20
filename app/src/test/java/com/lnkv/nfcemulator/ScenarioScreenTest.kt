@@ -46,4 +46,15 @@ class ScenarioScreenTest {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioList").assertExists()
     }
+
+    @Test
+    fun scenarioRemainsAfterPlay() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioSave").performClick()
+        composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
+        composeTestRule.onNodeWithTag("ScenarioPlay0").performClick()
+        composeTestRule.onNodeWithTag("ScenarioItem0").assertExists()
+    }
 }

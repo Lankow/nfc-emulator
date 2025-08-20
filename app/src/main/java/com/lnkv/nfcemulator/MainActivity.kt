@@ -117,11 +117,13 @@ class MainActivity : ComponentActivity() {
             serverPrefs.getBoolean("autoConnect", false)
         ) {
             val ipPort = serverPrefs.getString("ip", "0.0.0.0:0000")!!
-            val host = ipPort.substringBefore(":")
-            val port = ipPort.substringAfter(":").toIntOrNull()
-            val poll = serverPrefs.getString("pollingTime", "0")!!.toLongOrNull() ?: 0
-            if (port != null) {
-                ServerConnectionManager.connect(this, host, port, poll)
+            if (ipPort != "0.0.0.0:0000") {
+                val host = ipPort.substringBefore(":")
+                val port = ipPort.substringAfter(":").toIntOrNull()
+                val poll = serverPrefs.getString("pollingTime", "0")!!.toLongOrNull() ?: 0
+                if (port != null) {
+                    ServerConnectionManager.connect(this, host, port, poll)
+                }
             }
         }
 
@@ -559,6 +561,7 @@ fun MainScreen() {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }
     val logEntries by CommunicationLog.entries.collectAsState()
     val currentScenario by ScenarioManager.current.collectAsState()
+    val context = LocalContext.current
 
     androidx.compose.material3.Scaffold(
         bottomBar = {
@@ -582,7 +585,12 @@ fun MainScreen() {
     ) { padding ->
           when (currentScreen) {
               Screen.Communication ->
-                  CommunicationScreen(logEntries, currentScenario, Modifier.padding(padding))
+                  CommunicationScreen(
+                      logEntries,
+                      currentScenario,
+                      onClearScenario = { ScenarioManager.setCurrent(context, null) },
+                      modifier = Modifier.padding(padding)
+                  )
               Screen.Scenario ->
                   ScenarioScreen(Modifier.padding(padding))
               Screen.Server ->
@@ -600,6 +608,7 @@ fun MainScreen() {
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
     currentScenario: String?,
+    onClearScenario: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
@@ -633,7 +642,22 @@ fun CommunicationScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Current Scenario: ${currentScenario ?: "None"}")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Current Scenario: ${currentScenario ?: "None"}",
+                modifier = Modifier.weight(1f)
+            )
+            Button(
+                onClick = onClearScenario,
+                enabled = currentScenario != null,
+                modifier = Modifier.testTag("ScenarioClearButton")
+            ) {
+                Text("Clear")
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(
             modifier = Modifier

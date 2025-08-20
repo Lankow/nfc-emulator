@@ -1109,34 +1109,38 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                val wifiManager =
-                                    context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                                if (wifiManager.connectionInfo.networkId == -1) {
-                                    Toast.makeText(
-                                        context,
-                                        "Not connected to Wi-Fi",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    serverState = "Disconnected"
-                                } else {
-                                    scope.launch {
-                                        try {
-                                            val s = withContext(Dispatchers.IO) {
-                                                Socket().apply {
-                                                    connect(
-                                                        InetSocketAddress(ip.substringBefore(":"), portPart),
-                                                        5000
-                                                    )
+                                try {
+                                    val wifiManager =
+                                        context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                                    if (wifiManager.connectionInfo.networkId == -1) {
+                                        Toast.makeText(
+                                            context,
+                                            "Not connected to Wi-Fi",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        serverState = "Disconnected"
+                                    } else {
+                                        scope.launch {
+                                            try {
+                                                val s = withContext(Dispatchers.IO) {
+                                                    Socket().apply {
+                                                        connect(
+                                                            InetSocketAddress(ip.substringBefore(":"), portPart),
+                                                            5000
+                                                        )
+                                                    }
                                                 }
+                                                socket = s
+                                                serverState = "Connected"
+                                            } catch (e: IOException) {
+                                                serverState = "Connection Failed"
+                                            } catch (e: Exception) {
+                                                serverState = "Encountered Error (${e.message})"
                                             }
-                                            socket = s
-                                            serverState = "Connected"
-                                        } catch (e: IOException) {
-                                            serverState = "Connection Failed"
-                                        } catch (e: Exception) {
-                                            serverState = "Encountered Error (${e.message})"
                                         }
                                     }
+                                } catch (e: SecurityException) {
+                                    serverState = "Encountered Error (${e.message})"
                                 }
                             }
                         }

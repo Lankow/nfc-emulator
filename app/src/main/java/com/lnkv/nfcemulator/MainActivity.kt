@@ -22,6 +22,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,8 +55,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.border
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.MultiChoiceSegmentedButtonRow
@@ -79,6 +82,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -86,6 +91,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import android.content.res.ColorStateList
 import java.io.File
+import android.net.Uri
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -497,8 +505,6 @@ data class Step(
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
 
-enum class ScenarioAction { Export, Import }
-
 private const val SCENARIO_PREFS = "scenario_prefs"
 private const val SCENARIO_KEY = "scenarios"
 
@@ -558,61 +564,66 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
     }.toMutableStateList()
 }
 
-private fun exportScenarios(context: Context, scenarios: List<Scenario>) {
+private fun exportScenarios(context: Context, scenarios: List<Scenario>, uri: Uri) {
     if (scenarios.isEmpty()) return
-    val serialized = scenarios.joinToString("\n") { scenario ->
-        val stepString = scenario.steps.joinToString(",") { step ->
-            listOf(
-                step.name,
-                step.trigger.name,
-                step.action.name,
-                step.request,
-                step.response,
-                step.previousStepName ?: "",
-                step.durationMs.toString(),
-                step.delayMode.name,
-                step.occurrences.toString()
-            ).joinToString(";")
+    val json = JSONArray().apply {
+        scenarios.forEach { scenario ->
+            put(
+                JSONObject().apply {
+                    put("name", scenario.name)
+                    put("steps", JSONArray().apply {
+                        scenario.steps.forEach { step ->
+                            put(
+                                JSONObject().apply {
+                                    put("name", step.name)
+                                    put("trigger", step.trigger.name)
+                                    put("action", step.action.name)
+                                    put("request", step.request)
+                                    put("response", step.response)
+                                    put("previous", step.previousStepName ?: "")
+                                    put("duration", step.durationMs)
+                                    put("delayMode", step.delayMode.name)
+                                    put("occurrences", step.occurrences)
+                                }
+                            )
+                        }
+                    })
+                }
+            )
         }
-        scenario.name + "|" + stepString
-    }
-    File(context.filesDir, "scenarios_export.txt").writeText(serialized)
-    Toast.makeText(context, "Exported", Toast.LENGTH_SHORT).show()
+    }.toString()
+    context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+    val name = uri.lastPathSegment ?: "file"
+    Toast.makeText(context, "Scenarios saved to file: $name", Toast.LENGTH_SHORT).show()
 }
 
-private fun importScenarios(context: Context): List<Scenario> {
-    val file = File(context.filesDir, "scenarios_export.txt")
-    if (!file.exists()) return emptyList()
-    return file.readLines().filter { it.isNotBlank() }.map { line ->
-        val parts = line.split("|", limit = 2)
-        val name = parts[0]
-        val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
-            parts[1].split(",").map { stepStr ->
-                val sp = stepStr.split(";")
-                val stepName = sp.getOrElse(0) { "" }
-                val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
-                val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
-                val request = sp.getOrElse(3) { "" }
-                val response = sp.getOrElse(4) { "" }
-                val prev = sp.getOrElse(5) { "" }
-                val duration = sp.getOrElse(6) { "1000" }
-                val mode = sp.getOrElse(7) { DelayMode.Duration.name }
-                val occurrences = sp.getOrElse(8) { "1" }
+private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
+    val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return emptyList()
+    val array = JSONArray(text)
+    val scenarios = mutableListOf<Scenario>()
+    for (i in 0 until array.length()) {
+        val obj = array.getJSONObject(i)
+        val stepsArray = obj.optJSONArray("steps") ?: JSONArray()
+        val steps = mutableStateListOf<Step>()
+        for (j in 0 until stepsArray.length()) {
+            val stepObj = stepsArray.getJSONObject(j)
+            steps.add(
                 Step(
-                    stepName,
-                    StepTrigger.valueOf(trigger),
-                    StepAction.valueOf(action),
-                    request,
-                    response,
-                    prev.ifEmpty { null },
-                    duration.toIntOrNull() ?: 1000,
-                    DelayMode.valueOf(mode),
-                    occurrences.toIntOrNull() ?: 1
+                    stepObj.getString("name"),
+                    StepTrigger.valueOf(stepObj.getString("trigger")),
+                    StepAction.valueOf(stepObj.getString("action")),
+                    stepObj.getString("request"),
+                    stepObj.getString("response"),
+                    stepObj.optString("previous").ifBlank { null },
+                    stepObj.optInt("duration", 1000),
+                    DelayMode.valueOf(stepObj.getString("delayMode")),
+                    stepObj.optInt("occurrences", 1)
                 )
-            }.toMutableStateList()
-        } else mutableStateListOf()
-        Scenario(name, steps)
+            )
+        }
+        scenarios.add(Scenario(obj.getString("name"), steps))
     }
+    return scenarios
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -783,7 +794,31 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
     var deleteIndices by remember { mutableStateOf<List<Int>?>(null) }
-    var action by rememberSaveable { mutableStateOf(ScenarioAction.Export) }
+    var showMenu by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            exportScenarios(
+                context,
+                scenarios.filterIndexed { index, _ -> index in selected },
+                uri
+            )
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val imported = importScenarios(context, uri)
+            scenarios.clear()
+            scenarios.addAll(imported)
+            selected.clear()
+            saveScenarios(context, scenarios)
+            Toast.makeText(context, "${imported.size} item(s) have been imported.", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     if (editingIndex != null) {
         val isNew = editingIndex == -1
@@ -806,6 +841,57 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
         )
     } else {
         Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Select All") },
+                            onClick = {
+                                selected.clear()
+                                selected.addAll(scenarios.indices)
+                                showMenu = false
+                            }
+                        )
+                        if (selected.isNotEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Deselect All") },
+                                onClick = {
+                                    selected.clear()
+                                    showMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete") },
+                                onClick = {
+                                    deleteIndices = selected.toList()
+                                    showMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export") },
+                                onClick = {
+                                    exportLauncher.launch("scenarios.json")
+                                    showMenu = false
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Import") },
+                            onClick = {
+                                importLauncher.launch(arrayOf("application/json"))
+                                showMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -863,20 +949,10 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { editingIndex = -1 },
-                    modifier = Modifier.weight(1f).testTag("ScenarioNew")
-                ) { Text("New") }
-                Button(
-                    onClick = { deleteIndices = selected.toList() },
-                    enabled = selected.isNotEmpty(),
-                    modifier = Modifier.weight(1f).testTag("ScenarioDeleteSelected")
-                ) { Text("Delete Selected") }
-            }
+            Button(
+                onClick = { editingIndex = -1 },
+                modifier = Modifier.fillMaxWidth().testTag("ScenarioNew")
+            ) { Text("New") }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -894,28 +970,6 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.weight(1f).testTag("ScenarioClear")
                 ) { Text("Clear") }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            EnumSpinner(
-                label = "Action",
-                options = ScenarioAction.values().toList(),
-                selected = action,
-                labelMapper = { it.name },
-                onSelected = { selectedAction ->
-                    action = selectedAction
-                    when (selectedAction) {
-                        ScenarioAction.Export -> exportScenarios(
-                            context,
-                            scenarios.filterIndexed { index, _ -> index in selected }
-                        )
-                        ScenarioAction.Import -> {
-                            val imported = importScenarios(context)
-                            scenarios.addAll(imported)
-                            saveScenarios(context, scenarios)
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().testTag("ScenarioActionSpinner")
-            )
         }
         if (showClearDialog) {
             AlertDialog(
@@ -935,12 +989,8 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             )
         }
         if (deleteIndices != null) {
-            val names = deleteIndices!!.map { scenarios[it].name }
-            val msg = if (names.size == 1) {
-                "Delete scenario \"${names[0]}\"?"
-            } else {
-                "Delete ${names.size} scenarios?"
-            }
+            val count = deleteIndices!!.size
+            val msg = "Do you really want to delete $count item(s)?"
             AlertDialog(
                 onDismissRequest = { deleteIndices = null },
                 confirmButton = {

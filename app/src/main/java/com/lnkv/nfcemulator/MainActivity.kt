@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -63,6 +64,7 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.FilledIconButton
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
@@ -792,7 +794,6 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
     val scenarios = remember { loadScenarios(context) }
     val selected = remember { mutableStateListOf<Int>() }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
-    var showClearDialog by remember { mutableStateOf(false) }
     var deleteIndices by remember { mutableStateOf<List<Int>?>(null) }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -845,8 +846,19 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
+                FilledIconButton(
+                    onClick = { editingIndex = -1 },
+                    shape = CircleShape,
+                    modifier = Modifier.testTag("ScenarioNew")
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "New Scenario")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Box {
-                    IconButton(onClick = { showMenu = true }) {
+                    FilledIconButton(
+                        onClick = { showMenu = true },
+                        shape = CircleShape
+                    ) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
@@ -949,44 +961,6 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { editingIndex = -1 },
-                modifier = Modifier.fillMaxWidth().testTag("ScenarioNew")
-            ) { Text("New") }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        saveScenarios(context, scenarios)
-                        Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.weight(1f).testTag("ScenarioSave")
-                ) { Text("Save") }
-                Button(
-                    onClick = { showClearDialog = true },
-                    modifier = Modifier.weight(1f).testTag("ScenarioClear")
-                ) { Text("Clear") }
-            }
-        }
-        if (showClearDialog) {
-            AlertDialog(
-                onDismissRequest = { showClearDialog = false },
-                confirmButton = {
-                    Button(onClick = {
-                        scenarios.clear()
-                        selected.clear()
-                        showClearDialog = false
-                        saveScenarios(context, scenarios)
-                    }) { Text("OK") }
-                },
-                dismissButton = {
-                    Button(onClick = { showClearDialog = false }) { Text("Cancel") }
-                },
-                text = { Text("Clear all scenarios?") }
-            )
         }
         if (deleteIndices != null) {
             val count = deleteIndices!!.size

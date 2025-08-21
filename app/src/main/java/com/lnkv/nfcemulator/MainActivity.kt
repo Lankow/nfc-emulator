@@ -20,8 +20,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MultiChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -31,6 +39,10 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,14 +63,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.border
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.MultiChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Scaffold
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
@@ -78,6 +87,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -85,6 +96,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import android.content.res.ColorStateList
 import java.io.File
+import android.net.Uri
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -206,6 +220,7 @@ fun <T> EnumSpinner(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                                .defaultMinSize(minHeight = 48.dp)
                 .border(1.dp, colors.outline, RoundedCornerShape(4.dp))
         ) {
             AndroidView(
@@ -380,24 +395,27 @@ fun StepEditor(
                     delayMode = DelayMode.Duration
                     duration = step.durationMs.toString()
                 },
-                shape = SegmentedButtonDefaults.itemShape(0, 3)
-            ) { Text("Duration") }
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                label = { Text("Duration") }
+            )
             SegmentedButton(
                 selected = delayMode == DelayMode.Occurrences,
                 onClick = {
                     delayMode = DelayMode.Occurrences
                     duration = step.occurrences.toString()
                 },
-                shape = SegmentedButtonDefaults.itemShape(1, 3)
-            ) { Text("Occurrences") }
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+                label = { Text("Occurrences") }
+            )
             SegmentedButton(
                 selected = delayMode == DelayMode.Always,
                 onClick = {
                     delayMode = DelayMode.Always
                     duration = ""
                 },
-                shape = SegmentedButtonDefaults.itemShape(2, 3)
-            ) { Text("Always") }
+                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                label = { Text("Always") }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
@@ -555,6 +573,68 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
     }.toMutableStateList()
 }
 
+private fun exportScenarios(context: Context, scenarios: List<Scenario>, uri: Uri) {
+    if (scenarios.isEmpty()) return
+    val json = JSONArray().apply {
+        scenarios.forEach { scenario ->
+            put(
+                JSONObject().apply {
+                    put("name", scenario.name)
+                    put("steps", JSONArray().apply {
+                        scenario.steps.forEach { step ->
+                            put(
+                                JSONObject().apply {
+                                    put("name", step.name)
+                                    put("trigger", step.trigger.name)
+                                    put("action", step.action.name)
+                                    put("request", step.request)
+                                    put("response", step.response)
+                                    put("previous", step.previousStepName ?: "")
+                                    put("duration", step.durationMs)
+                                    put("delayMode", step.delayMode.name)
+                                    put("occurrences", step.occurrences)
+                                }
+                            )
+                        }
+                    })
+                }
+            )
+        }
+    }.toString()
+    context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+    val name = uri.lastPathSegment ?: "file"
+    Toast.makeText(context, "Scenarios saved to file: $name", Toast.LENGTH_SHORT).show()
+}
+
+private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
+    val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return emptyList()
+    val array = JSONArray(text)
+    val scenarios = mutableListOf<Scenario>()
+    for (i in 0 until array.length()) {
+        val obj = array.getJSONObject(i)
+        val stepsArray = obj.optJSONArray("steps") ?: JSONArray()
+        val steps = mutableStateListOf<Step>()
+        for (j in 0 until stepsArray.length()) {
+            val stepObj = stepsArray.getJSONObject(j)
+            steps.add(
+                Step(
+                    stepObj.getString("name"),
+                    StepTrigger.valueOf(stepObj.getString("trigger")),
+                    StepAction.valueOf(stepObj.getString("action")),
+                    stepObj.getString("request"),
+                    stepObj.getString("response"),
+                    stepObj.optString("previous").ifBlank { null },
+                    stepObj.optInt("duration", 1000),
+                    DelayMode.valueOf(stepObj.getString("delayMode")),
+                    stepObj.optInt("occurrences", 1)
+                )
+            )
+        }
+        scenarios.add(Scenario(obj.getString("name"), steps))
+    }
+    return scenarios
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
@@ -592,7 +672,10 @@ fun MainScreen() {
                       modifier = Modifier.padding(padding)
                   )
               Screen.Scenario ->
-                  ScenarioScreen(Modifier.padding(padding))
+                  ScenarioScreen(
+                      modifier = Modifier.padding(padding),
+                      onPlayScenario = { currentScreen = Screen.Communication }
+                  )
               Screen.Server ->
                   ServerScreen(Modifier.padding(padding))
           }
@@ -614,10 +697,6 @@ fun CommunicationScreen(
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        val segColors = SegmentedButtonDefaults.colors(
-            activeContainerColor = MaterialTheme.colorScheme.primary,
-            activeContentColor = MaterialTheme.colorScheme.onPrimary
-        )
         MultiChoiceSegmentedButtonRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -625,20 +704,18 @@ fun CommunicationScreen(
         ) {
             SegmentedButton(
                 checked = showServer,
-                onCheckedChange = { showServer = it },
-                enabled = showNfc || !showServer,
+                onCheckedChange = { if (it || showNfc) showServer = it },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                colors = segColors,
+                label = { Text("Server") },
                 modifier = Modifier.testTag("ServerToggle")
-            ) { Text("Server") }
+            )
             SegmentedButton(
                 checked = showNfc,
-                onCheckedChange = { showNfc = it },
-                enabled = showServer || !showNfc,
+                onCheckedChange = { if (it || showServer) showNfc = it },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                colors = segColors,
+                label = { Text("NFC") },
                 modifier = Modifier.testTag("NfcToggle")
-            ) { Text("NFC") }
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -716,13 +793,39 @@ fun CommunicationScreen(
 }
 
 @Composable
-fun ScenarioScreen(modifier: Modifier = Modifier) {
+fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {}) {
     val context = LocalContext.current
     val scenarios = remember { loadScenarios(context) }
-    var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    val selected = remember { mutableStateListOf<Int>() }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
-    var showClearDialog by remember { mutableStateOf(false) }
-    var deleteIndex by remember { mutableStateOf<Int?>(null) }
+    var deleteIndices by remember { mutableStateOf<List<Int>?>(null) }
+    var showMenu by remember { mutableStateOf(false) }
+    var showFilter by remember { mutableStateOf(false) }
+    var filter by remember { mutableStateOf("") }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            exportScenarios(
+                context,
+                scenarios.filterIndexed { index, _ -> index in selected },
+                uri
+            )
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val imported = importScenarios(context, uri)
+            scenarios.clear()
+            scenarios.addAll(imported)
+            selected.clear()
+            saveScenarios(context, scenarios)
+            Toast.makeText(context, "${imported.size} item(s) have been imported.", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     if (editingIndex != null) {
         val isNew = editingIndex == -1
@@ -736,15 +839,114 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             modifier = modifier,
             scenario = workingScenario,
             onSave = { updated ->
-                if (isNew) scenarios.add(updated)
-                else scenarios[editingIndex!!] = updated
+                if (isNew) scenarios.add(updated) else scenarios[editingIndex!!] = updated
                 editingIndex = null
-                selectedIndex = null
+                selected.clear()
+                saveScenarios(context, scenarios)
             },
             onCancel = { editingIndex = null }
         )
     } else {
-        Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Scenarios",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { editingIndex = -1 },
+                        modifier = Modifier.size(40.dp).testTag("ScenarioNew"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = "New Scenario",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Button(
+                        onClick = { showFilter = true },
+                        modifier = Modifier.size(40.dp).testTag("ScenarioFilter"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = "Filter",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Box {
+                        Button(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.size(40.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(
+                                Icons.Filled.MoreVert,
+                                contentDescription = "Menu",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Select All") },
+                                onClick = {
+                                    selected.clear()
+                                    selected.addAll(scenarios.indices)
+                                    showMenu = false
+                                }
+                            )
+                            if (selected.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Deselect All") },
+                                    onClick = {
+                                        selected.clear()
+                                        showMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    onClick = {
+                                        deleteIndices = selected.toList()
+                                        showMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Export") },
+                                    onClick = {
+                                        exportLauncher.launch("scenarios.json")
+                                        showMenu = false
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Import") },
+                                onClick = {
+                                    importLauncher.launch(arrayOf("application/json"))
+                                    showMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -753,19 +955,24 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .testTag("ScenarioList")
             ) {
+                val displayItems = scenarios.withIndex()
+                    .filter { it.value.name.contains(filter, ignoreCase = true) }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    itemsIndexed(scenarios) { index, scenario ->
-                        val isSelected = selectedIndex == index
+                    items(displayItems, key = { it.index }) { (index, scenario) ->
+                        val isSelected = selected.contains(index)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .defaultMinSize(minHeight = 48.dp)
                                 .background(
                                     if (isSelected)
                                         MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                     else Color.Transparent
                                 )
-                                .clickable { selectedIndex = index }
-                                .padding(12.dp)
+                                .clickable {
+                                    if (isSelected) selected.remove(index) else selected.add(index)
+                                }
+                                .padding(horizontal = 12.dp)
                                 .testTag("ScenarioItem$index"),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -774,94 +981,107 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                                 modifier = Modifier.weight(1f)
                             )
                             if (isSelected) {
-                                IconButton(
-                                    onClick = {
-                                        ScenarioManager.setCurrent(context, scenario.name)
-                                    },
-                                    modifier = Modifier.testTag("ScenarioPlay$index")
-                                ) {
-                                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
-                                }
-                                IconButton(
-                                    onClick = { deleteIndex = index },
-                                    modifier = Modifier.testTag("ScenarioDelete$index")
-                                ) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            ScenarioManager.setCurrent(context, scenario.name)
+                                            onPlayScenario()
+                                        },
+                                        modifier = Modifier.size(40.dp).testTag("ScenarioPlay$index"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.PlayArrow,
+                                            contentDescription = "Play",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { editingIndex = index },
+                                        modifier = Modifier.size(40.dp).testTag("ScenarioEdit$index"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Edit,
+                                            contentDescription = "Edit",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { deleteIndices = listOf(index) },
+                                        modifier = Modifier.size(40.dp).testTag("ScenarioDelete$index"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "Delete",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { editingIndex = -1 },
-                    modifier = Modifier.weight(1f).testTag("ScenarioNew")
-                ) { Text("New") }
-                Button(
-                    onClick = { editingIndex = selectedIndex },
-                    enabled = selectedIndex != null,
-                    modifier = Modifier.weight(1f).testTag("ScenarioEdit")
-                ) { Text("Edit") }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        saveScenarios(context, scenarios)
-                        Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.weight(1f).testTag("ScenarioSave")
-                ) { Text("Save") }
-                Button(
-                    onClick = { showClearDialog = true },
-                    modifier = Modifier.weight(1f).testTag("ScenarioClear")
-                ) { Text("Clear") }
-            }
         }
-        if (showClearDialog) {
+        if (deleteIndices != null) {
+            val count = deleteIndices!!.size
+            val msg = "Do you really want to delete $count item(s)?"
             AlertDialog(
-                onDismissRequest = { showClearDialog = false },
+                onDismissRequest = { deleteIndices = null },
                 confirmButton = {
                     Button(onClick = {
-                        scenarios.clear()
-                        selectedIndex = null
-                        showClearDialog = false
+                        deleteIndices!!.sortedDescending().forEach { idx ->
+                            val removed = scenarios.removeAt(idx)
+                            if (ScenarioManager.current.value == removed.name) {
+                                ScenarioManager.setCurrent(context, null)
+                            }
+                        }
+                        selected.clear()
+                        deleteIndices = null
                         saveScenarios(context, scenarios)
                     }) { Text("OK") }
                 },
                 dismissButton = {
-                    Button(onClick = { showClearDialog = false }) { Text("Cancel") }
+                    Button(onClick = { deleteIndices = null }) { Text("Cancel") }
                 },
-                text = { Text("Clear all scenarios?") }
+                text = { Text(msg) }
             )
         }
-        if (deleteIndex != null) {
-            val name = scenarios[deleteIndex!!].name
+        if (showFilter) {
+            var temp by remember { mutableStateOf(filter) }
             AlertDialog(
-                onDismissRequest = { deleteIndex = null },
+                onDismissRequest = { showFilter = false },
                 confirmButton = {
-                    Button(onClick = {
-                        val removed = scenarios.removeAt(deleteIndex!!)
-                        if (ScenarioManager.current.value == removed.name) {
-                            ScenarioManager.setCurrent(context, null)
-                        }
-                        deleteIndex = null
-                        selectedIndex = null
-                        saveScenarios(context, scenarios)
-                    }) { Text("OK") }
+                    Row {
+                        TextButton(onClick = {
+                            filter = ""
+                            showFilter = false
+                        }) { Text("Clear") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = {
+                            filter = temp
+                            showFilter = false
+                        }) { Text("Apply") }
+                    }
                 },
                 dismissButton = {
-                    Button(onClick = { deleteIndex = null }) { Text("Cancel") }
+                    TextButton(onClick = { showFilter = false }) { Text("Cancel") }
                 },
-                text = { Text("Delete scenario \"$name\"?") }
+                text = {
+                    OutlinedTextField(
+                        value = temp,
+                        onValueChange = { temp = it },
+                        label = { Text("Filter") }
+                    )
+                }
             )
         }
     }
@@ -879,6 +1099,7 @@ fun ScenarioEditor(
     var selectedStep by remember { mutableStateOf<Int?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
     var editingStepIndex by remember { mutableStateOf<Int?>(null) }
+    var showTitleAlert by remember { mutableStateOf(false) }
 
     if (editingStepIndex != null) {
         val isNewStep = editingStepIndex == -1
@@ -968,8 +1189,12 @@ fun ScenarioEditor(
             ) {
                 Button(
                     onClick = {
-                        scenario.name = title
-                        onSave(scenario)
+                        if (title.isBlank()) {
+                            showTitleAlert = true
+                        } else {
+                            scenario.name = title
+                            onSave(scenario)
+                        }
                     },
                     modifier = Modifier.weight(1f).testTag("ScenarioSave")
                 ) { Text("Save") }
@@ -993,6 +1218,15 @@ fun ScenarioEditor(
                     Button(onClick = { showClearDialog = false }) { Text("Cancel") }
                 },
                 text = { Text("Clear all steps?") }
+            )
+        }
+        if (showTitleAlert) {
+            AlertDialog(
+                onDismissRequest = { showTitleAlert = false },
+                confirmButton = {
+                    Button(onClick = { showTitleAlert = false }) { Text("OK") }
+                },
+                text = { Text("Title is required") }
             )
         }
     }
@@ -1024,16 +1258,12 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     var port by rememberSaveable { mutableStateOf(prefs.getString("port", "0000")!!) }
     var staticPort by rememberSaveable { mutableStateOf(prefs.getBoolean("staticPort", false)) }
     var autoStart by rememberSaveable { mutableStateOf(prefs.getBoolean("autoStart", false)) }
-    var isServerRunning by rememberSaveable { mutableStateOf(false) }
-    val connectedDevices = remember { mutableStateListOf<String>() }
+    val internalState = InternalServerManager.state
+    val isServerRunning = internalState == "Running"
+    val connectedDevices = InternalServerManager.connectedDevices
     val localIp = remember { getLocalIpAddress(context) }
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}:(\\d{1,5})$")
-
-    val segColors = SegmentedButtonDefaults.colors(
-        activeContainerColor = MaterialTheme.colorScheme.primary,
-        activeContentColor = MaterialTheme.colorScheme.onPrimary
-    )
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         SingleChoiceSegmentedButtonRow(
@@ -1048,9 +1278,9 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                     prefs.edit().putBoolean("isExternal", true).apply()
                 },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                colors = segColors,
+                label = { Text("External") },
                 modifier = Modifier.testTag("ExternalToggle")
-            ) { Text("External") }
+            )
             SegmentedButton(
                 selected = !isExternal,
                 onClick = {
@@ -1058,9 +1288,9 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                     prefs.edit().putBoolean("isExternal", false).apply()
                 },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                colors = segColors,
+                label = { Text("Internal") },
                 modifier = Modifier.testTag("InternalToggle")
-            ) { Text("Internal") }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (isExternal) {
@@ -1294,12 +1524,14 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 }
                 Button(
                     onClick = {
-                        isServerRunning = !isServerRunning
                         if (isServerRunning) {
-                            connectedDevices.clear()
-                            connectedDevices.addAll(listOf("Device1", "Device2"))
+                            InternalServerManager.stop()
                         } else {
-                            connectedDevices.clear()
+                            if (serverState == "Connected") {
+                                ServerConnectionManager.disconnect()
+                            }
+                            val portNum = if (staticPort && port.isNotEmpty()) port.toInt() else 0
+                            InternalServerManager.start(portNum)
                         }
                     },
                     modifier = Modifier.weight(1f).testTag("StartButton")

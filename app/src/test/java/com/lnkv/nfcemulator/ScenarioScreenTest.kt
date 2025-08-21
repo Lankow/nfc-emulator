@@ -1,7 +1,5 @@
 package com.lnkv.nfcemulator
 
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -16,14 +14,14 @@ class ScenarioScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun editButtonEnabledWhenScenarioSelected() {
+    fun editIconOpensEditorWhenScenarioSelected() {
         composeTestRule.setContent { ScenarioScreen() }
-        composeTestRule.onNodeWithTag("ScenarioEdit").assertIsNotEnabled()
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
         composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
         composeTestRule.onNodeWithTag("ScenarioSave").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
-        composeTestRule.onNodeWithTag("ScenarioEdit").assertIsEnabled()
+        composeTestRule.onNodeWithTag("ScenarioEdit0").performClick()
+        composeTestRule.onNodeWithTag("ScenarioTitle").assertExists()
     }
 
     @Test

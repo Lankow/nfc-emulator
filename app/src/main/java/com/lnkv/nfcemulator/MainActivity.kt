@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -496,6 +497,8 @@ data class Step(
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
 
+enum class ScenarioAction { Export, Import }
+
 private const val SCENARIO_PREFS = "scenario_prefs"
 private const val SCENARIO_KEY = "scenarios"
 
@@ -553,6 +556,63 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
         } else mutableStateListOf()
         Scenario(name, steps)
     }.toMutableStateList()
+}
+
+private fun exportScenarios(context: Context, scenarios: List<Scenario>) {
+    if (scenarios.isEmpty()) return
+    val serialized = scenarios.joinToString("\n") { scenario ->
+        val stepString = scenario.steps.joinToString(",") { step ->
+            listOf(
+                step.name,
+                step.trigger.name,
+                step.action.name,
+                step.request,
+                step.response,
+                step.previousStepName ?: "",
+                step.durationMs.toString(),
+                step.delayMode.name,
+                step.occurrences.toString()
+            ).joinToString(";")
+        }
+        scenario.name + "|" + stepString
+    }
+    File(context.filesDir, "scenarios_export.txt").writeText(serialized)
+    Toast.makeText(context, "Exported", Toast.LENGTH_SHORT).show()
+}
+
+private fun importScenarios(context: Context): List<Scenario> {
+    val file = File(context.filesDir, "scenarios_export.txt")
+    if (!file.exists()) return emptyList()
+    return file.readLines().filter { it.isNotBlank() }.map { line ->
+        val parts = line.split("|", limit = 2)
+        val name = parts[0]
+        val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
+            parts[1].split(",").map { stepStr ->
+                val sp = stepStr.split(";")
+                val stepName = sp.getOrElse(0) { "" }
+                val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
+                val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
+                val request = sp.getOrElse(3) { "" }
+                val response = sp.getOrElse(4) { "" }
+                val prev = sp.getOrElse(5) { "" }
+                val duration = sp.getOrElse(6) { "1000" }
+                val mode = sp.getOrElse(7) { DelayMode.Duration.name }
+                val occurrences = sp.getOrElse(8) { "1" }
+                Step(
+                    stepName,
+                    StepTrigger.valueOf(trigger),
+                    StepAction.valueOf(action),
+                    request,
+                    response,
+                    prev.ifEmpty { null },
+                    duration.toIntOrNull() ?: 1000,
+                    DelayMode.valueOf(mode),
+                    occurrences.toIntOrNull() ?: 1
+                )
+            }.toMutableStateList()
+        } else mutableStateListOf()
+        Scenario(name, steps)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -719,10 +779,11 @@ fun CommunicationScreen(
 fun ScenarioScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scenarios = remember { loadScenarios(context) }
-    var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    val selected = remember { mutableStateListOf<Int>() }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
-    var deleteIndex by remember { mutableStateOf<Int?>(null) }
+    var deleteIndices by remember { mutableStateOf<List<Int>?>(null) }
+    var action by rememberSaveable { mutableStateOf(ScenarioAction.Export) }
 
     if (editingIndex != null) {
         val isNew = editingIndex == -1
@@ -736,10 +797,10 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             modifier = modifier,
             scenario = workingScenario,
             onSave = { updated ->
-                if (isNew) scenarios.add(updated)
-                else scenarios[editingIndex!!] = updated
+                if (isNew) scenarios.add(updated) else scenarios[editingIndex!!] = updated
                 editingIndex = null
-                selectedIndex = null
+                selected.clear()
+                saveScenarios(context, scenarios)
             },
             onCancel = { editingIndex = null }
         )
@@ -755,7 +816,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(scenarios) { index, scenario ->
-                        val isSelected = selectedIndex == index
+                        val isSelected = selected.contains(index)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -764,7 +825,9 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                                         MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                     else Color.Transparent
                                 )
-                                .clickable { selectedIndex = index }
+                                .clickable {
+                                    if (isSelected) selected.remove(index) else selected.add(index)
+                                }
                                 .padding(12.dp)
                                 .testTag("ScenarioItem$index"),
                             verticalAlignment = Alignment.CenterVertically
@@ -783,7 +846,13 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                                     Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
                                 }
                                 IconButton(
-                                    onClick = { deleteIndex = index },
+                                    onClick = { editingIndex = index },
+                                    modifier = Modifier.testTag("ScenarioEdit$index")
+                                ) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                                }
+                                IconButton(
+                                    onClick = { deleteIndices = listOf(index) },
                                     modifier = Modifier.testTag("ScenarioDelete$index")
                                 ) {
                                     Icon(Icons.Filled.Delete, contentDescription = "Delete")
@@ -803,10 +872,10 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.weight(1f).testTag("ScenarioNew")
                 ) { Text("New") }
                 Button(
-                    onClick = { editingIndex = selectedIndex },
-                    enabled = selectedIndex != null,
-                    modifier = Modifier.weight(1f).testTag("ScenarioEdit")
-                ) { Text("Edit") }
+                    onClick = { deleteIndices = selected.toList() },
+                    enabled = selected.isNotEmpty(),
+                    modifier = Modifier.weight(1f).testTag("ScenarioDeleteSelected")
+                ) { Text("Delete Selected") }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -825,6 +894,28 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.weight(1f).testTag("ScenarioClear")
                 ) { Text("Clear") }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            EnumSpinner(
+                label = "Action",
+                options = ScenarioAction.values().toList(),
+                selected = action,
+                labelMapper = { it.name },
+                onSelected = { selectedAction ->
+                    action = selectedAction
+                    when (selectedAction) {
+                        ScenarioAction.Export -> exportScenarios(
+                            context,
+                            scenarios.filterIndexed { index, _ -> index in selected }
+                        )
+                        ScenarioAction.Import -> {
+                            val imported = importScenarios(context)
+                            scenarios.addAll(imported)
+                            saveScenarios(context, scenarios)
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().testTag("ScenarioActionSpinner")
+            )
         }
         if (showClearDialog) {
             AlertDialog(
@@ -832,7 +923,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                 confirmButton = {
                     Button(onClick = {
                         scenarios.clear()
-                        selectedIndex = null
+                        selected.clear()
                         showClearDialog = false
                         saveScenarios(context, scenarios)
                     }) { Text("OK") }
@@ -843,25 +934,32 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                 text = { Text("Clear all scenarios?") }
             )
         }
-        if (deleteIndex != null) {
-            val name = scenarios[deleteIndex!!].name
+        if (deleteIndices != null) {
+            val names = deleteIndices!!.map { scenarios[it].name }
+            val msg = if (names.size == 1) {
+                "Delete scenario \"${names[0]}\"?"
+            } else {
+                "Delete ${names.size} scenarios?"
+            }
             AlertDialog(
-                onDismissRequest = { deleteIndex = null },
+                onDismissRequest = { deleteIndices = null },
                 confirmButton = {
                     Button(onClick = {
-                        val removed = scenarios.removeAt(deleteIndex!!)
-                        if (ScenarioManager.current.value == removed.name) {
-                            ScenarioManager.setCurrent(context, null)
+                        deleteIndices!!.sortedDescending().forEach { idx ->
+                            val removed = scenarios.removeAt(idx)
+                            if (ScenarioManager.current.value == removed.name) {
+                                ScenarioManager.setCurrent(context, null)
+                            }
                         }
-                        deleteIndex = null
-                        selectedIndex = null
+                        selected.clear()
+                        deleteIndices = null
                         saveScenarios(context, scenarios)
                     }) { Text("OK") }
                 },
                 dismissButton = {
-                    Button(onClick = { deleteIndex = null }) { Text("Cancel") }
+                    Button(onClick = { deleteIndices = null }) { Text("Cancel") }
                 },
-                text = { Text("Delete scenario \"$name\"?") }
+                text = { Text(msg) }
             )
         }
     }
@@ -879,6 +977,7 @@ fun ScenarioEditor(
     var selectedStep by remember { mutableStateOf<Int?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
     var editingStepIndex by remember { mutableStateOf<Int?>(null) }
+    var showTitleAlert by remember { mutableStateOf(false) }
 
     if (editingStepIndex != null) {
         val isNewStep = editingStepIndex == -1
@@ -968,8 +1067,12 @@ fun ScenarioEditor(
             ) {
                 Button(
                     onClick = {
-                        scenario.name = title
-                        onSave(scenario)
+                        if (title.isBlank()) {
+                            showTitleAlert = true
+                        } else {
+                            scenario.name = title
+                            onSave(scenario)
+                        }
                     },
                     modifier = Modifier.weight(1f).testTag("ScenarioSave")
                 ) { Text("Save") }
@@ -993,6 +1096,15 @@ fun ScenarioEditor(
                     Button(onClick = { showClearDialog = false }) { Text("Cancel") }
                 },
                 text = { Text("Clear all steps?") }
+            )
+        }
+        if (showTitleAlert) {
+            AlertDialog(
+                onDismissRequest = { showTitleAlert = false },
+                confirmButton = {
+                    Button(onClick = { showTitleAlert = false }) { Text("OK") }
+                },
+                text = { Text("Title is required") }
             )
         }
     }

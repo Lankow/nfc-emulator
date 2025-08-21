@@ -23,9 +23,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MultiChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -384,39 +388,34 @@ fun StepEditor(
             enabled = action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            @Composable
-            fun buttonColors(selected: Boolean) = ButtonDefaults.buttonColors(
-                containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-            )
-            Button(
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = delayMode == DelayMode.Duration,
                 onClick = {
                     delayMode = DelayMode.Duration
                     duration = step.durationMs.toString()
                 },
-                colors = buttonColors(delayMode == DelayMode.Duration),
-                modifier = Modifier.weight(1f)
-            ) { Text("Duration") }
-            Button(
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                label = { Text("Duration") }
+            )
+            SegmentedButton(
+                selected = delayMode == DelayMode.Occurrences,
                 onClick = {
                     delayMode = DelayMode.Occurrences
                     duration = step.occurrences.toString()
                 },
-                colors = buttonColors(delayMode == DelayMode.Occurrences),
-                modifier = Modifier.weight(1f)
-            ) { Text("Occurrences") }
-            Button(
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+                label = { Text("Occurrences") }
+            )
+            SegmentedButton(
+                selected = delayMode == DelayMode.Always,
                 onClick = {
                     delayMode = DelayMode.Always
                     duration = ""
                 },
-                colors = buttonColors(delayMode == DelayMode.Always),
-                modifier = Modifier.weight(1f)
-            ) { Text("Always") }
+                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                label = { Text("Always") }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
@@ -698,27 +697,25 @@ fun CommunicationScreen(
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        @Composable
-        fun toggleColors(selected: Boolean) = ButtonDefaults.buttonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-        )
-        Row(
+        MultiChoiceSegmentedButtonRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("CommSegments"),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .testTag("CommSegments")
         ) {
-            Button(
-                onClick = { if (showNfc || !showServer) showServer = !showServer },
-                colors = toggleColors(showServer),
-                modifier = Modifier.weight(1f).testTag("ServerToggle")
-            ) { Text("Server") }
-            Button(
-                onClick = { if (showServer || !showNfc) showNfc = !showNfc },
-                colors = toggleColors(showNfc),
-                modifier = Modifier.weight(1f).testTag("NfcToggle")
-            ) { Text("NFC") }
+            SegmentedButton(
+                checked = showServer,
+                onCheckedChange = { if (it || showNfc) showServer = it },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                label = { Text("Server") },
+                modifier = Modifier.testTag("ServerToggle")
+            )
+            SegmentedButton(
+                checked = showNfc,
+                onCheckedChange = { if (it || showServer) showNfc = it },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                label = { Text("NFC") },
+                modifier = Modifier.testTag("NfcToggle")
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -865,13 +862,12 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                     modifier = Modifier.weight(1f)
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(
+                    Button(
                         onClick = { editingIndex = -1 },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.primary)
-                            .testTag("ScenarioNew")
+                        modifier = Modifier.size(40.dp).testTag("ScenarioNew"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(
                             Icons.Filled.Add,
@@ -879,13 +875,12 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
-                    IconButton(
+                    Button(
                         onClick = { showFilter = true },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.primary)
-                            .testTag("ScenarioFilter")
+                        modifier = Modifier.size(40.dp).testTag("ScenarioFilter"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(
                             Icons.Filled.Search,
@@ -894,12 +889,12 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                         )
                     }
                     Box {
-                        IconButton(
+                        Button(
                             onClick = { showMenu = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primary)
+                            modifier = Modifier.size(40.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Icon(
                                 Icons.Filled.MoreVert,
@@ -987,16 +982,15 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                             )
                             if (isSelected) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    IconButton(
+                                    Button(
                                         onClick = {
                                             ScenarioManager.setCurrent(context, scenario.name)
                                             onPlayScenario()
                                         },
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .testTag("ScenarioPlay$index")
+                                        modifier = Modifier.size(40.dp).testTag("ScenarioPlay$index"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                     ) {
                                         Icon(
                                             Icons.Filled.PlayArrow,
@@ -1004,13 +998,12 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                                             tint = MaterialTheme.colorScheme.onPrimary
                                         )
                                     }
-                                    IconButton(
+                                    Button(
                                         onClick = { editingIndex = index },
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .testTag("ScenarioEdit$index")
+                                        modifier = Modifier.size(40.dp).testTag("ScenarioEdit$index"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                     ) {
                                         Icon(
                                             Icons.Filled.Edit,
@@ -1018,13 +1011,12 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                                             tint = MaterialTheme.colorScheme.onPrimary
                                         )
                                     }
-                                    IconButton(
+                                    Button(
                                         onClick = { deleteIndices = listOf(index) },
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .testTag("ScenarioDelete$index")
+                                        modifier = Modifier.size(40.dp).testTag("ScenarioDelete$index"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(0.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                     ) {
                                         Icon(
                                             Icons.Filled.Delete,
@@ -1273,35 +1265,32 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}:(\\d{1,5})$")
 
-    @Composable
-    fun toggleColors(selected: Boolean) = ButtonDefaults.buttonColors(
-        containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    )
-
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Row(
+        SingleChoiceSegmentedButtonRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("ServerType"),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .testTag("ServerType")
         ) {
-            Button(
+            SegmentedButton(
+                selected = isExternal,
                 onClick = {
                     isExternal = true
                     prefs.edit().putBoolean("isExternal", true).apply()
                 },
-                colors = toggleColors(isExternal),
-                modifier = Modifier.weight(1f).testTag("ExternalToggle")
-            ) { Text("External") }
-            Button(
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                label = { Text("External") },
+                modifier = Modifier.testTag("ExternalToggle")
+            )
+            SegmentedButton(
+                selected = !isExternal,
                 onClick = {
                     isExternal = false
                     prefs.edit().putBoolean("isExternal", false).apply()
                 },
-                colors = toggleColors(!isExternal),
-                modifier = Modifier.weight(1f).testTag("InternalToggle")
-            ) { Text("Internal") }
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                label = { Text("Internal") },
+                modifier = Modifier.testTag("InternalToggle")
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (isExternal) {

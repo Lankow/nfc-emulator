@@ -64,7 +64,9 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
@@ -841,79 +843,86 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             onCancel = { editingIndex = null }
         )
     } else {
-        Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                FilledIconButton(
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            topBar = {
+                TopAppBar(
+                    title = { Text("Scenarios") },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+                            }
+                            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Select All") },
+                                    onClick = {
+                                        selected.clear()
+                                        selected.addAll(scenarios.indices)
+                                        showMenu = false
+                                    }
+                                )
+                                if (selected.isNotEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("Deselect All") },
+                                        onClick = {
+                                            selected.clear()
+                                            showMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        onClick = {
+                                            deleteIndices = selected.toList()
+                                            showMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Export") },
+                                        onClick = {
+                                            exportLauncher.launch("scenarios.json")
+                                            showMenu = false
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Import") },
+                                    onClick = {
+                                        importLauncher.launch(arrayOf("application/json"))
+                                        showMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
                     onClick = { editingIndex = -1 },
-                    shape = CircleShape,
                     modifier = Modifier.testTag("ScenarioNew")
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = "New Scenario")
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Box {
-                    FilledIconButton(
-                        onClick = { showMenu = true },
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
-                    }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Select All") },
-                            onClick = {
-                                selected.clear()
-                                selected.addAll(scenarios.indices)
-                                showMenu = false
-                            }
-                        )
-                        if (selected.isNotEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("Deselect All") },
-                                onClick = {
-                                    selected.clear()
-                                    showMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Delete") },
-                                onClick = {
-                                    deleteIndices = selected.toList()
-                                    showMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Export") },
-                                onClick = {
-                                    exportLauncher.launch("scenarios.json")
-                                    showMenu = false
-                                }
-                            )
-                        }
-                        DropdownMenuItem(
-                            text = { Text("Import") },
-                            onClick = {
-                                importLauncher.launch(arrayOf("application/json"))
-                                showMenu = false
-                            }
-                        )
-                    }
-                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
+        ) { innerPadding ->
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .testTag("ScenarioList")
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .padding(innerPadding)
             ) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    itemsIndexed(scenarios) { index, scenario ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .testTag("ScenarioList")
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        itemsIndexed(scenarios) { index, scenario ->
                         val isSelected = selected.contains(index)
                         Row(
                             modifier = Modifier
@@ -959,8 +968,8 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         }
                     }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
             }
-            Spacer(modifier = Modifier.height(8.dp))
         }
         if (deleteIndices != null) {
             val count = deleteIndices!!.size

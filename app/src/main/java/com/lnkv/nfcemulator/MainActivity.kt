@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
@@ -66,7 +67,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.FilledTonalIconButton
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
@@ -219,6 +219,7 @@ fun <T> EnumSpinner(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                                .defaultMinSize(minHeight = 48.dp)
                 .border(1.dp, colors.outline, RoundedCornerShape(4.dp))
         ) {
             AndroidView(
@@ -859,63 +860,75 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f)
                 )
-                FilledTonalIconButton(
-                    onClick = { editingIndex = -1 },
-                    modifier = Modifier.testTag("ScenarioNew")
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "New Scenario")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                FilledTonalIconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("ScenarioFilter")) {
-                    Icon(Icons.Filled.Search, contentDescription = "Filter")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Box {
-                    FilledTonalIconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+                SingleChoiceSegmentedButtonRow {
+                    SegmentedButton(
+                        selected = false,
+                        onClick = { editingIndex = -1 },
+                        shape = SegmentedButtonDefaults.itemShape(0, 3),
+                        modifier = Modifier.testTag("ScenarioNew")
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "New Scenario")
                     }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Select All") },
-                            onClick = {
-                                selected.clear()
-                                selected.addAll(scenarios.indices)
-                                showMenu = false
-                            }
-                        )
-                        if (selected.isNotEmpty()) {
+                    SegmentedButton(
+                        selected = false,
+                        onClick = { showFilter = true },
+                        shape = SegmentedButtonDefaults.itemShape(1, 3),
+                        modifier = Modifier.testTag("ScenarioFilter")
+                    ) {
+                        Icon(Icons.Filled.Search, contentDescription = "Filter")
+                    }
+                    Box {
+                        SegmentedButton(
+                            selected = false,
+                            onClick = { showMenu = true },
+                            shape = SegmentedButtonDefaults.itemShape(2, 3)
+                        ) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                             DropdownMenuItem(
-                                text = { Text("Deselect All") },
+                                text = { Text("Select All") },
                                 onClick = {
                                     selected.clear()
+                                    selected.addAll(scenarios.indices)
                                     showMenu = false
                                 }
                             )
+                            if (selected.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Deselect All") },
+                                    onClick = {
+                                        selected.clear()
+                                        showMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    onClick = {
+                                        deleteIndices = selected.toList()
+                                        showMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Export") },
+                                    onClick = {
+                                        exportLauncher.launch("scenarios.json")
+                                        showMenu = false
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
-                                text = { Text("Delete") },
+                                text = { Text("Import") },
                                 onClick = {
-                                    deleteIndices = selected.toList()
-                                    showMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Export") },
-                                onClick = {
-                                    exportLauncher.launch("scenarios.json")
+                                    importLauncher.launch(arrayOf("application/json"))
                                     showMenu = false
                                 }
                             )
                         }
-                        DropdownMenuItem(
-                            text = { Text("Import") },
-                            onClick = {
-                                importLauncher.launch(arrayOf("application/json"))
-                                showMenu = false
-                            }
-                        )
                     }
                 }
             }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
@@ -933,6 +946,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .defaultMinSize(minHeight = 48.dp)
                                 .background(
                                     if (isSelected)
                                         MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
@@ -941,7 +955,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                                 .clickable {
                                     if (isSelected) selected.remove(index) else selected.add(index)
                                 }
-                                .padding(12.dp)
+                                .padding(horizontal = 12.dp)
                                 .testTag("ScenarioItem$index"),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1005,13 +1019,20 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
             AlertDialog(
                 onDismissRequest = { showFilter = false },
                 confirmButton = {
-                    Button(onClick = {
-                        filter = temp
-                        showFilter = false
-                    }) { Text("Apply") }
+                    Row {
+                        TextButton(onClick = {
+                            filter = ""
+                            showFilter = false
+                        }) { Text("Clear") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = {
+                            filter = temp
+                            showFilter = false
+                        }) { Text("Apply") }
+                    }
                 },
                 dismissButton = {
-                    Button(onClick = { showFilter = false }) { Text("Cancel") }
+                    TextButton(onClick = { showFilter = false }) { Text("Cancel") }
                 },
                 text = {
                     OutlinedTextField(

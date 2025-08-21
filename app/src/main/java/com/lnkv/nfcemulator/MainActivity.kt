@@ -673,7 +673,10 @@ fun MainScreen() {
                       modifier = Modifier.padding(padding)
                   )
               Screen.Scenario ->
-                  ScenarioScreen(Modifier.padding(padding))
+                  ScenarioScreen(
+                      modifier = Modifier.padding(padding),
+                      onPlayScenario = { currentScreen = Screen.Communication }
+                  )
               Screen.Server ->
                   ServerScreen(Modifier.padding(padding))
           }
@@ -793,7 +796,7 @@ fun CommunicationScreen(
 }
 
 @Composable
-fun ScenarioScreen(modifier: Modifier = Modifier) {
+fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {}) {
     val context = LocalContext.current
     val scenarios = remember { loadScenarios(context) }
     val selected = remember { mutableStateListOf<Int>() }
@@ -866,7 +869,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         onClick = { editingIndex = -1 },
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.primary)
                             .testTag("ScenarioNew")
                     ) {
@@ -880,7 +883,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                         onClick = { showFilter = true },
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.primary)
                             .testTag("ScenarioFilter")
                     ) {
@@ -895,7 +898,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                             onClick = { showMenu = true },
                             modifier = Modifier
                                 .size(40.dp)
-                                .clip(CircleShape)
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(MaterialTheme.colorScheme.primary)
                         ) {
                             Icon(
@@ -983,25 +986,52 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                                 modifier = Modifier.weight(1f)
                             )
                             if (isSelected) {
-                                IconButton(
-                                    onClick = {
-                                        ScenarioManager.setCurrent(context, scenario.name)
-                                    },
-                                    modifier = Modifier.testTag("ScenarioPlay$index")
-                                ) {
-                                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
-                                }
-                                IconButton(
-                                    onClick = { editingIndex = index },
-                                    modifier = Modifier.testTag("ScenarioEdit$index")
-                                ) {
-                                    Icon(Icons.Filled.Edit, contentDescription = "Edit")
-                                }
-                                IconButton(
-                                    onClick = { deleteIndices = listOf(index) },
-                                    modifier = Modifier.testTag("ScenarioDelete$index")
-                                ) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    IconButton(
+                                        onClick = {
+                                            ScenarioManager.setCurrent(context, scenario.name)
+                                            onPlayScenario()
+                                        },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.primary)
+                                            .testTag("ScenarioPlay$index")
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.PlayArrow,
+                                            contentDescription = "Play",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { editingIndex = index },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.primary)
+                                            .testTag("ScenarioEdit$index")
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Edit,
+                                            contentDescription = "Edit",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { deleteIndices = listOf(index) },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.primary)
+                                            .testTag("ScenarioDelete$index")
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "Delete",
+                                            tint = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
                                 }
                             }
                         }

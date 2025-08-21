@@ -998,6 +998,8 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
     }
 }
 
+}
+
 @Composable
 fun ScenarioEditor(
     modifier: Modifier = Modifier,

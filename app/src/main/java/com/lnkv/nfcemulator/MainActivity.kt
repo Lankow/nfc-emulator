@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -797,6 +798,8 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var deleteIndices by remember { mutableStateOf<List<Int>?>(null) }
     var showMenu by remember { mutableStateOf(false) }
+    var showFilter by remember { mutableStateOf(false) }
+    var filter by remember { mutableStateOf("") }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -863,6 +866,10 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     Icon(Icons.Filled.Add, contentDescription = "New Scenario")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
+                FilledTonalIconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("ScenarioFilter")) {
+                    Icon(Icons.Filled.Search, contentDescription = "Filter")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Box {
                     FilledTonalIconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
@@ -918,8 +925,10 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .testTag("ScenarioList")
             ) {
+                val displayItems = scenarios.withIndex()
+                    .filter { it.value.name.contains(filter, ignoreCase = true) }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    itemsIndexed(scenarios) { index, scenario ->
+                    items(displayItems, key = { it.index }) { (index, scenario) ->
                         val isSelected = selected.contains(index)
                         Row(
                             modifier = Modifier
@@ -989,6 +998,28 @@ fun ScenarioScreen(modifier: Modifier = Modifier) {
                     Button(onClick = { deleteIndices = null }) { Text("Cancel") }
                 },
                 text = { Text(msg) }
+            )
+        }
+        if (showFilter) {
+            var temp by remember { mutableStateOf(filter) }
+            AlertDialog(
+                onDismissRequest = { showFilter = false },
+                confirmButton = {
+                    Button(onClick = {
+                        filter = temp
+                        showFilter = false
+                    }) { Text("Apply") }
+                },
+                dismissButton = {
+                    Button(onClick = { showFilter = false }) { Text("Cancel") }
+                },
+                text = {
+                    OutlinedTextField(
+                        value = temp,
+                        onValueChange = { temp = it },
+                        label = { Text("Filter") }
+                    )
+                }
             )
         }
     }
@@ -1165,8 +1196,9 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     var port by rememberSaveable { mutableStateOf(prefs.getString("port", "0000")!!) }
     var staticPort by rememberSaveable { mutableStateOf(prefs.getBoolean("staticPort", false)) }
     var autoStart by rememberSaveable { mutableStateOf(prefs.getBoolean("autoStart", false)) }
-    var isServerRunning by rememberSaveable { mutableStateOf(false) }
-    val connectedDevices = remember { mutableStateListOf<String>() }
+    val internalState = InternalServerManager.state
+    val isServerRunning = internalState == "Running"
+    val connectedDevices = InternalServerManager.connectedDevices
     val localIp = remember { getLocalIpAddress(context) }
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}:(\\d{1,5})$")
@@ -1435,12 +1467,14 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 }
                 Button(
                     onClick = {
-                        isServerRunning = !isServerRunning
                         if (isServerRunning) {
-                            connectedDevices.clear()
-                            connectedDevices.addAll(listOf("Device1", "Device2"))
+                            InternalServerManager.stop()
                         } else {
-                            connectedDevices.clear()
+                            if (serverState == "Connected") {
+                                ServerConnectionManager.disconnect()
+                            }
+                            val portNum = if (staticPort && port.isNotEmpty()) port.toInt() else 0
+                            InternalServerManager.start(portNum)
                         }
                     },
                     modifier = Modifier.weight(1f).testTag("StartButton")

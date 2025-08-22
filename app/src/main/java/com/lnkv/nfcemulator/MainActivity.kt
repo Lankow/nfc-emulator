@@ -498,7 +498,7 @@ fun StepEditor(
  * Navigation targets displayed in the bottom bar.
  */
 enum class Screen(val label: String) {
-    Communication("Communication"),
+    Communication("Comm"),
     Scenario("Scenarios"),
     Server("Server"),
     Aid("AID")
@@ -687,6 +687,7 @@ fun MainScreen() {
                   CommunicationScreen(
                       logEntries,
                       currentScenario,
+                      onRunScenario = { name -> ScenarioManager.setCurrent(context, name) },
                       onClearScenario = { ScenarioManager.setCurrent(context, null) },
                       modifier = Modifier.padding(padding)
                   )
@@ -712,6 +713,7 @@ fun MainScreen() {
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
     currentScenario: String?,
+    onRunScenario: (String) -> Unit,
     onClearScenario: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -748,12 +750,21 @@ fun CommunicationScreen(
                 "Current Scenario: ${currentScenario ?: "None"}",
                 modifier = Modifier.weight(1f)
             )
-            Button(
-                onClick = onClearScenario,
-                enabled = currentScenario != null,
-                modifier = Modifier.testTag("ScenarioClearButton")
-            ) {
-                Text("Clear")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = { currentScenario?.let(onRunScenario) },
+                    enabled = currentScenario != null,
+                    modifier = Modifier.testTag("ScenarioRunButton")
+                ) {
+                    Text("Run")
+                }
+                Button(
+                    onClick = onClearScenario,
+                    enabled = currentScenario != null,
+                    modifier = Modifier.testTag("ScenarioClearButton")
+                ) {
+                    Text("Clear")
+                }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))

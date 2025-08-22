@@ -161,11 +161,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun registerAids(aids: List<String>) {
-        cardEmulation.registerAidsForService(
-            componentName,
-            CardEmulation.CATEGORY_OTHER,
-            aids
-        )
+        if (aids.isEmpty()) {
+            cardEmulation.removeAidsForService(
+                componentName,
+                CardEmulation.CATEGORY_OTHER
+            )
+        } else {
+            cardEmulation.registerAidsForService(
+                componentName,
+                CardEmulation.CATEGORY_OTHER,
+                aids
+            )
+        }
     }
 }
 
@@ -1263,11 +1270,16 @@ private fun saveAids(context: Context, aids: List<String>) {
     prefs.edit().putStringSet(AID_KEY, aids.toSet()).apply()
     val nfcAdapter = NfcAdapter.getDefaultAdapter(context)
     val cardEmulation = CardEmulation.getInstance(nfcAdapter)
-    cardEmulation.registerAidsForService(
-        ComponentName(context, TypeAEmulatorService::class.java),
-        CardEmulation.CATEGORY_OTHER,
-        aids
-    )
+    val component = ComponentName(context, TypeAEmulatorService::class.java)
+    if (aids.isEmpty()) {
+        cardEmulation.removeAidsForService(component, CardEmulation.CATEGORY_OTHER)
+    } else {
+        cardEmulation.registerAidsForService(
+            component,
+            CardEmulation.CATEGORY_OTHER,
+            aids
+        )
+    }
 }
 
 private fun exportAids(context: Context, aids: List<String>, uri: Uri) {

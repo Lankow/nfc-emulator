@@ -1259,25 +1259,33 @@ fun ScenarioEditor(
 private const val AID_PREFS = "nfc_aids"
 private const val AID_KEY = "aids"
 
+internal fun isValidAid(aid: String): Boolean {
+    return aid.length in 10..32 && aid.length % 2 == 0 && aid.all { it in '0'..'9' || it in 'A'..'F' }
+}
+
 private fun loadAids(context: Context): SnapshotStateList<String> {
     val prefs = context.getSharedPreferences(AID_PREFS, Context.MODE_PRIVATE)
     val set = prefs.getStringSet(AID_KEY, setOf("F0010203040506")) ?: emptySet()
-    return set.toMutableList().toMutableStateList()
+    return set.filter(::isValidAid).toMutableList().toMutableStateList()
 }
 
 private fun saveAids(context: Context, aids: List<String>) {
+    val validAids = aids.filter(::isValidAid)
+    if (validAids.size != aids.size) {
+        Toast.makeText(context, "Some AIDs were invalid and ignored", Toast.LENGTH_SHORT).show()
+    }
     val prefs = context.getSharedPreferences(AID_PREFS, Context.MODE_PRIVATE)
-    prefs.edit().putStringSet(AID_KEY, aids.toSet()).apply()
+    prefs.edit().putStringSet(AID_KEY, validAids.toSet()).apply()
     val nfcAdapter = NfcAdapter.getDefaultAdapter(context)
     val cardEmulation = CardEmulation.getInstance(nfcAdapter)
     val component = ComponentName(context, TypeAEmulatorService::class.java)
-    if (aids.isEmpty()) {
+    if (validAids.isEmpty()) {
         cardEmulation.removeAidsForService(component, CardEmulation.CATEGORY_OTHER)
     } else {
         cardEmulation.registerAidsForService(
             component,
             CardEmulation.CATEGORY_OTHER,
-            aids
+            validAids
         )
     }
 }
@@ -1299,7 +1307,8 @@ private fun importAids(context: Context, uri: Uri): List<String> {
     val arr = JSONArray(text)
     val list = mutableListOf<String>()
     for (i in 0 until arr.length()) {
-        list.add(arr.getString(i))
+        val aid = arr.getString(i).uppercase()
+        if (isValidAid(aid)) list.add(aid)
     }
     return list
 }
@@ -1338,7 +1347,7 @@ fun AidScreen(modifier: Modifier = Modifier) {
                 value = newAid,
                 onValueChange = { input ->
                     val filtered = input.uppercase()
-                    if (filtered.all { it in '0'..'9' || it in 'A'..'F' }) newAid = filtered
+                    if (filtered.length <= 32 && filtered.all { it in '0'..'9' || it in 'A'..'F' }) newAid = filtered
                 },
                 label = { Text("New AID") },
                 singleLine = true,
@@ -1346,7 +1355,7 @@ fun AidScreen(modifier: Modifier = Modifier) {
             )
             Button(
                 onClick = {
-                    if (newAid.isNotBlank() && newAid.length % 2 == 0) {
+                    if (isValidAid(newAid)) {
                         if (!aids.contains(newAid)) {
                             aids.add(newAid)
                             saveAids(context, aids)

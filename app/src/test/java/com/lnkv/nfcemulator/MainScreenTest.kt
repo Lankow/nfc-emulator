@@ -15,5 +15,6 @@ class MainScreenTest {
         composeTestRule.onNodeWithContentDescription("Communication").assertExists()
         composeTestRule.onNodeWithContentDescription("Scenarios").assertExists()
         composeTestRule.onNodeWithContentDescription("Server").assertExists()
+        composeTestRule.onNodeWithContentDescription("AID").assertExists()
     }
 }

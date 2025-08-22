@@ -141,6 +141,16 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        if (serverPrefs.getBoolean("autoStart", false) && getLocalIpAddress(this) != null) {
+            val staticPort = serverPrefs.getBoolean("staticPort", false)
+            val portStr = serverPrefs.getString("port", "0000")!!
+            val portNum = if (staticPort && portStr.isNotBlank()) portStr.toIntOrNull() ?: 0 else 0
+            if (ServerConnectionManager.state == "Connected") {
+                ServerConnectionManager.disconnect()
+            }
+            InternalServerManager.start(portNum)
+        }
+
         ScenarioManager.load(this)
 
         setContent {
@@ -151,11 +161,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun registerAids(aids: List<String>) {
-        cardEmulation.registerAidsForService(
-            componentName,
-            CardEmulation.CATEGORY_OTHER,
-            aids
-        )
+        if (aids.isEmpty()) {
+            cardEmulation.removeAidsForService(
+                componentName,
+                CardEmulation.CATEGORY_OTHER
+            )
+        } else {
+            cardEmulation.registerAidsForService(
+                componentName,
+                CardEmulation.CATEGORY_OTHER,
+                aids
+            )
+        }
     }
 }
 
@@ -481,9 +498,10 @@ fun StepEditor(
  * Navigation targets displayed in the bottom bar.
  */
 enum class Screen(val label: String) {
-    Communication("Communication"),
+    Communication("Comm"),
     Scenario("Scenarios"),
-    Server("Server")
+    Server("Server"),
+    Aid("AID")
 }
 
 enum class StepTrigger(val label: String) {
@@ -655,6 +673,7 @@ fun MainScreen() {
                                   Screen.Communication -> Icon(Icons.Filled.Nfc, contentDescription = screen.label)
                                   Screen.Scenario -> Icon(Icons.Filled.List, contentDescription = screen.label)
                                   Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
+                                  Screen.Aid -> Icon(Icons.Filled.Edit, contentDescription = screen.label)
                               }
                           },
                           label = { Text(screen.label) }
@@ -668,6 +687,7 @@ fun MainScreen() {
                   CommunicationScreen(
                       logEntries,
                       currentScenario,
+                      onRunScenario = { name -> ScenarioManager.setCurrent(context, name) },
                       onClearScenario = { ScenarioManager.setCurrent(context, null) },
                       modifier = Modifier.padding(padding)
                   )
@@ -678,6 +698,8 @@ fun MainScreen() {
                   )
               Screen.Server ->
                   ServerScreen(Modifier.padding(padding))
+              Screen.Aid ->
+                  AidScreen(Modifier.padding(padding))
           }
     }
 }
@@ -691,6 +713,7 @@ fun MainScreen() {
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
     currentScenario: String?,
+    onRunScenario: (String) -> Unit,
     onClearScenario: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -727,12 +750,21 @@ fun CommunicationScreen(
                 "Current Scenario: ${currentScenario ?: "None"}",
                 modifier = Modifier.weight(1f)
             )
-            Button(
-                onClick = onClearScenario,
-                enabled = currentScenario != null,
-                modifier = Modifier.testTag("ScenarioClearButton")
-            ) {
-                Text("Clear")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = { currentScenario?.let(onRunScenario) },
+                    enabled = currentScenario != null,
+                    modifier = Modifier.testTag("ScenarioRunButton")
+                ) {
+                    Text("Run")
+                }
+                Button(
+                    onClick = onClearScenario,
+                    enabled = currentScenario != null,
+                    modifier = Modifier.testTag("ScenarioClearButton")
+                ) {
+                    Text("Clear")
+                }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -958,7 +990,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                 val displayItems = scenarios.withIndex()
                     .filter { it.value.name.contains(filter, ignoreCase = true) }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(displayItems, key = { it.index }) { (index, scenario) ->
+                    itemsIndexed(displayItems, key = { _, item -> item.index }) { idx, (index, scenario) ->
                         val isSelected = selected.contains(index)
                         Row(
                             modifier = Modifier
@@ -1026,6 +1058,9 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
                                     }
                                 }
                             }
+                        }
+                        if (idx < displayItems.lastIndex) {
+                            HorizontalDivider()
                         }
                     }
                 }
@@ -1232,6 +1267,159 @@ fun ScenarioEditor(
     }
 }
 
+private const val AID_PREFS = "nfc_aids"
+private const val AID_KEY = "aids"
+
+internal fun isValidAid(aid: String): Boolean {
+    return aid.length in 10..32 && aid.length % 2 == 0 && aid.all { it in '0'..'9' || it in 'A'..'F' }
+}
+
+private fun loadAids(context: Context): SnapshotStateList<String> {
+    val prefs = context.getSharedPreferences(AID_PREFS, Context.MODE_PRIVATE)
+    val set = prefs.getStringSet(AID_KEY, setOf("F0010203040506")) ?: emptySet()
+    return set.filter(::isValidAid).toMutableList().toMutableStateList()
+}
+
+private fun saveAids(context: Context, aids: List<String>) {
+    val validAids = aids.filter(::isValidAid)
+    if (validAids.size != aids.size) {
+        Toast.makeText(context, "Some AIDs were invalid and ignored", Toast.LENGTH_SHORT).show()
+    }
+    val prefs = context.getSharedPreferences(AID_PREFS, Context.MODE_PRIVATE)
+    prefs.edit().putStringSet(AID_KEY, validAids.toSet()).apply()
+    val nfcAdapter = NfcAdapter.getDefaultAdapter(context)
+    val cardEmulation = CardEmulation.getInstance(nfcAdapter)
+    val component = ComponentName(context, TypeAEmulatorService::class.java)
+    if (validAids.isEmpty()) {
+        cardEmulation.removeAidsForService(component, CardEmulation.CATEGORY_OTHER)
+    } else {
+        cardEmulation.registerAidsForService(
+            component,
+            CardEmulation.CATEGORY_OTHER,
+            validAids
+        )
+    }
+}
+
+private fun exportAids(context: Context, aids: List<String>, uri: Uri) {
+    if (aids.isEmpty()) return
+    context.contentResolver.openOutputStream(uri)?.use { os ->
+        val arr = JSONArray()
+        aids.forEach { arr.put(it) }
+        os.write(arr.toString().toByteArray())
+    }
+    val name = uri.path?.substringAfterLast('/') ?: "aids.json"
+    Toast.makeText(context, "AIDs saved to file: $name", Toast.LENGTH_SHORT).show()
+}
+
+private fun importAids(context: Context, uri: Uri): List<String> {
+    val text = context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
+        ?: return emptyList()
+    val arr = JSONArray(text)
+    val list = mutableListOf<String>()
+    for (i in 0 until arr.length()) {
+        val aid = arr.getString(i).uppercase()
+        if (isValidAid(aid)) list.add(aid)
+    }
+    return list
+}
+
+@Composable
+fun AidScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val aids = remember { loadAids(context) }
+    var newAid by remember { mutableStateOf("") }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            exportAids(context, aids, uri)
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val imported = importAids(context, uri)
+            aids.clear()
+            aids.addAll(imported)
+            saveAids(context, aids)
+            Toast.makeText(context, "${imported.size} item(s) have been imported.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = newAid,
+                onValueChange = { input ->
+                    val filtered = input.uppercase()
+                    if (filtered.length <= 32 && filtered.all { it in '0'..'9' || it in 'A'..'F' }) newAid = filtered
+                },
+                label = { Text("New AID") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            Button(
+                onClick = {
+                    if (isValidAid(newAid)) {
+                        if (!aids.contains(newAid)) {
+                            aids.add(newAid)
+                            saveAids(context, aids)
+                        }
+                        newAid = ""
+                    } else {
+                        Toast.makeText(context, "Invalid AID", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            ) { Text("Add") }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { exportLauncher.launch("aids.json") }, modifier = Modifier.weight(1f)) {
+                Text("Export")
+            }
+            Button(onClick = { importLauncher.launch(arrayOf("application/json")) }, modifier = Modifier.weight(1f)) {
+                Text("Import")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                itemsIndexed(aids) { index, aid ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(aid, modifier = Modifier.weight(1f))
+                        IconButton(onClick = {
+                            aids.removeAt(index)
+                            saveAids(context, aids)
+                        }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete AID")
+                        }
+                    }
+                    if (index < aids.lastIndex) {
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun getLocalIpAddress(context: Context): String? {
     return try {
         val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -1424,6 +1612,9 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
+                                if (InternalServerManager.state == "Running") {
+                                    InternalServerManager.stop()
+                                }
                                 ServerConnectionManager.connect(
                                     context,
                                     ip.substringBefore(":"),

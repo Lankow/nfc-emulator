@@ -21,7 +21,7 @@ class CommunicationScreenTest {
         )
 
         composeTestRule.setContent {
-            CommunicationScreen(entries, currentScenario = null, onClearScenario = {})
+            CommunicationScreen(entries, currentScenario = null, onRunScenario = {}, onClearScenario = {})
         }
 
         composeTestRule.onNodeWithText("0102", substring = true).assertExists()
@@ -36,7 +36,7 @@ class CommunicationScreenTest {
         )
 
         composeTestRule.setContent {
-            CommunicationScreen(entries, currentScenario = null, onClearScenario = {})
+            CommunicationScreen(entries, currentScenario = null, onRunScenario = {}, onClearScenario = {})
         }
 
         val heightBoth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.height
@@ -49,7 +49,7 @@ class CommunicationScreenTest {
 
     @Test
     fun dividerMatchesLogWidth() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onRunScenario = {}, onClearScenario = {}) }
 
         val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
         val dividerWidth = composeTestRule.onNodeWithTag("ToggleDivider").fetchSemanticsNode().size.width
@@ -59,14 +59,14 @@ class CommunicationScreenTest {
 
     @Test
     fun actionButtonsDisplayed() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onRunScenario = {}, onClearScenario = {}) }
         composeTestRule.onNodeWithTag("SaveButton").assertExists()
         composeTestRule.onNodeWithTag("ClearButton").assertExists()
     }
 
     @Test
     fun actionButtonsMatchLogWidth() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onRunScenario = {}, onClearScenario = {}) }
 
         val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
         val spacing = with(composeTestRule.density) { 8.dp.roundToPx() }
@@ -80,7 +80,7 @@ class CommunicationScreenTest {
 
     @Test
     fun segmentsFillWidth() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onRunScenario = {}, onClearScenario = {}) }
 
         val rootWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
         val expectedWidth = rootWidth - with(composeTestRule.density) { 32.dp.roundToPx() }
@@ -91,7 +91,7 @@ class CommunicationScreenTest {
 
     @Test
     fun lastSegmentDisables() {
-        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onClearScenario = {}) }
+        composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, onRunScenario = {}, onClearScenario = {}) }
         composeTestRule.onNodeWithTag("NfcToggle").performClick()
         composeTestRule.onNodeWithTag("ServerToggle").assertIsNotEnabled()
     }
@@ -99,9 +99,22 @@ class CommunicationScreenTest {
     @Test
     fun scenarioClearButtonShown() {
         composeTestRule.setContent {
-            CommunicationScreen(emptyList(), currentScenario = "S1", onClearScenario = {})
+            CommunicationScreen(emptyList(), currentScenario = "S1", onRunScenario = {}, onClearScenario = {})
         }
         composeTestRule.onNodeWithTag("ScenarioClearButton").assertExists()
+    }
+
+    @Test
+    fun scenarioRunButtonState() {
+        composeTestRule.setContent {
+            CommunicationScreen(emptyList(), currentScenario = null, onRunScenario = {}, onClearScenario = {})
+        }
+        composeTestRule.onNodeWithTag("ScenarioRunButton").assertIsNotEnabled()
+
+        composeTestRule.setContent {
+            CommunicationScreen(emptyList(), currentScenario = "S1", onRunScenario = {}, onClearScenario = {})
+        }
+        composeTestRule.onNodeWithTag("ScenarioRunButton").assertIsEnabled()
     }
 }
 

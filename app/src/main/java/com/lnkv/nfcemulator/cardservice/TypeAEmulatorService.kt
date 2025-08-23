@@ -4,6 +4,7 @@ import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
 import com.lnkv.nfcemulator.CommunicationLog
+import com.lnkv.nfcemulator.SettingsManager
 
 /**
  * Service that handles ISO 14443-4 (APDU) communication. It responds to incoming
@@ -11,21 +12,33 @@ import com.lnkv.nfcemulator.CommunicationLog
  */
 class TypeAEmulatorService : HostApduService() {
 
+    private var isSelected = false
+
     /**
-     * Processes a command APDU from the external NFC reader. For this simple example
-     * we only react to a SELECT command and return *90 00* (success). Any other
-     * command results in *6A 82* (file not found).
+     * Processes a command APDU from the external NFC reader. The default
+     * behaviour is configurable through [SettingsManager].
      */
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
-        if (commandApdu == null) return UNKNOWN_COMMAND
+        if (commandApdu == null) return SettingsManager.unselectedResponse.value.data
 
         val apduHex = commandApdu.toHex()
         Log.d(TAG, "APDU: $apduHex")
         CommunicationLog.add("REQ: $apduHex", false)
 
-        val response = if (isSelectCommand(commandApdu)) SELECT_OK else UNKNOWN_COMMAND
-        CommunicationLog.add("RESP: ${response.toHex()}", false)
+        val response = when {
+            isSelectCommand(commandApdu) -> {
+                if (!isSelected || SettingsManager.allowMultiSelect.value) {
+                    isSelected = true
+                    SELECT_OK
+                } else {
+                    SettingsManager.selectedResponse.value.data
+                }
+            }
+            isSelected -> SettingsManager.selectedResponse.value.data
+            else -> SettingsManager.unselectedResponse.value.data
+        }
 
+        CommunicationLog.add("RESP: ${response.toHex()}", false)
         return response
     }
 
@@ -41,13 +54,13 @@ class TypeAEmulatorService : HostApduService() {
 
     override fun onDeactivated(reason: Int) {
         Log.d(TAG, "Deactivated: ${'$'}reason")
+        isSelected = false
     }
 
     companion object {
         private const val TAG = "TypeAEmulatorService"
 
         private val SELECT_OK = byteArrayOf(0x90.toByte(), 0x00.toByte())
-        private val UNKNOWN_COMMAND = byteArrayOf(0x6A.toByte(), 0x82.toByte())
     }
 }
 

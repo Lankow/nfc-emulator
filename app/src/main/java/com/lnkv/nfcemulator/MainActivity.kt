@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -68,6 +69,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
@@ -152,6 +154,7 @@ class MainActivity : ComponentActivity() {
         }
 
         ScenarioManager.load(this)
+        SettingsManager.load(this)
 
         setContent {
             NFCEmulatorTheme {
@@ -501,7 +504,8 @@ enum class Screen(val label: String) {
     Communication("Comm"),
     Scenario("Scenarios"),
     Server("Server"),
-    Aid("AID")
+    Aid("AID"),
+    Settings("Settings")
 }
 
 enum class StepTrigger(val label: String) {
@@ -674,6 +678,7 @@ fun MainScreen() {
                                   Screen.Scenario -> Icon(Icons.Filled.List, contentDescription = screen.label)
                                   Screen.Server -> Icon(Icons.Filled.Wifi, contentDescription = screen.label)
                                   Screen.Aid -> Icon(Icons.Filled.Edit, contentDescription = screen.label)
+                                  Screen.Settings -> Icon(Icons.Filled.Settings, contentDescription = screen.label)
                               }
                           },
                           label = { Text(screen.label) }
@@ -700,6 +705,8 @@ fun MainScreen() {
                   ServerScreen(Modifier.padding(padding))
               Screen.Aid ->
                   AidScreen(Modifier.padding(padding))
+              Screen.Settings ->
+                  SettingsScreen(Modifier.padding(padding))
           }
     }
 }
@@ -1417,6 +1424,43 @@ fun AidScreen(modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SettingsScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val allow by SettingsManager.allowMultiSelect.collectAsState()
+    val selectedResp by SettingsManager.selectedResponse.collectAsState()
+    val unselectedResp by SettingsManager.unselectedResponse.collectAsState()
+
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Allow multiple selects", modifier = Modifier.weight(1f))
+            Switch(
+                checked = allow,
+                onCheckedChange = { SettingsManager.setAllowMultiSelect(context, it) },
+                modifier = Modifier.testTag("MultiSelectToggle")
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        EnumSpinner(
+            label = "When selected, respond",
+            options = DefaultResponse.entries.toList(),
+            selected = selectedResp,
+            labelMapper = { it.label },
+            onSelected = { SettingsManager.setSelectedResponse(context, it) },
+            modifier = Modifier.fillMaxWidth().testTag("SelectedRespSpinner")
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        EnumSpinner(
+            label = "When not selected, respond",
+            options = DefaultResponse.entries.toList(),
+            selected = unselectedResp,
+            labelMapper = { it.label },
+            onSelected = { SettingsManager.setUnselectedResponse(context, it) },
+            modifier = Modifier.fillMaxWidth().testTag("UnselectedRespSpinner")
+        )
     }
 }
 

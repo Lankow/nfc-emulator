@@ -27,12 +27,8 @@ class TypeAEmulatorService : HostApduService() {
 
         val response = when {
             isSelectCommand(commandApdu) -> {
-                if (!isSelected || SettingsManager.allowMultiSelect.value) {
-                    isSelected = true
-                    SELECT_OK
-                } else {
-                    SettingsManager.selectedResponse.value.data
-                }
+                isSelected = true
+                SELECT_OK
             }
             isSelected -> SettingsManager.selectedResponse.value.data
             else -> SettingsManager.unselectedResponse.value.data

@@ -40,6 +40,14 @@ class ScenarioScreenTest {
     }
 
     @Test
+    fun defaultResponseSpinnersVisible() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("SelectedRespSpinner").assertExists()
+        composeTestRule.onNodeWithTag("UnselectedRespSpinner").assertExists()
+    }
+
+    @Test
     fun scenarioListHasBackgroundContainer() {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioList").assertExists()

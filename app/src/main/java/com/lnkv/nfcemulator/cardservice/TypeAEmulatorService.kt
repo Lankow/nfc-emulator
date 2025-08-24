@@ -22,9 +22,10 @@ class TypeAEmulatorService : HostApduService() {
             val apduHex = commandApdu.toHex()
             Log.d(TAG, "APDU: $apduHex")
             CommunicationLog.add("REQ: $apduHex", false)
-            if (response != null) {
-                CommunicationLog.add("RESP: ${response.toHex()}", false)
-            }
+            CommunicationLog.add(
+                "RESP: ${response?.toHex() ?: "null"}",
+                false
+            )
         }
         return response
     }

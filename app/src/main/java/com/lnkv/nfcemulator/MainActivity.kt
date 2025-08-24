@@ -578,14 +578,27 @@ fun MainScreen() {
                       isSilenced,
                       onToggleRun = {
                           if (currentScenario != null) {
-                              ScenarioManager.setRunning(!isRunning)
+                              val starting = !isRunning
+                              ScenarioManager.setRunning(starting)
+                              CommunicationLog.add(
+                                  if (starting) "STATE-APP: Scenario started." else "STATE-APP: Scenario stopped.",
+                                  true,
+                                  if (starting) true else false
+                              )
                           }
                       },
                       onClearScenario = {
                           ScenarioManager.setCurrent(context, null)
                           ScenarioManager.setRunning(false)
                       },
-                      onToggleSilence = { ScenarioManager.toggleSilence() },
+                      onToggleSilence = {
+                          ScenarioManager.toggleSilence()
+                          CommunicationLog.add(
+                              if (!isSilenced) "STATE-APP: Scenario silenced." else "STATE-APP: Scenario unsilenced.",
+                              true,
+                              if (!isSilenced) false else true
+                          )
+                      },
                       modifier = Modifier.padding(padding)
                   )
               Screen.Scenario ->
@@ -651,33 +664,33 @@ fun CommunicationScreen(
                 modifier = Modifier.weight(1f)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = onToggleRun,
-                    enabled = currentScenario != null,
-                    modifier = Modifier.size(40.dp).testTag("ScenarioRunButton"),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(
-                        if (isRunning) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = if (isRunning) "Stop" else "Run",
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-                Button(
-                    onClick = onClearScenario,
-                    enabled = currentScenario != null,
-                    modifier = Modifier.size(40.dp).testTag("ScenarioClearButton"),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Clear",
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
+                if (currentScenario != null) {
+                    Button(
+                        onClick = onToggleRun,
+                        modifier = Modifier.size(40.dp).testTag("ScenarioRunButton"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            if (isRunning) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                            contentDescription = if (isRunning) "Stop" else "Run",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Button(
+                        onClick = onClearScenario,
+                        modifier = Modifier.size(40.dp).testTag("ScenarioClearButton"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
                 Button(
                     onClick = onToggleSilence,

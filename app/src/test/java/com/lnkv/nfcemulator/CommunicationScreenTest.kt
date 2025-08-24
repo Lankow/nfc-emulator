@@ -97,7 +97,12 @@ class CommunicationScreenTest {
     }
 
     @Test
-    fun scenarioClearButtonShown() {
+    fun scenarioClearButtonVisibility() {
+        composeTestRule.setContent {
+            CommunicationScreen(emptyList(), currentScenario = null, isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {})
+        }
+        composeTestRule.onNodeWithTag("ScenarioClearButton").assertDoesNotExist()
+
         composeTestRule.setContent {
             CommunicationScreen(emptyList(), currentScenario = "S1", isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {})
         }
@@ -105,16 +110,16 @@ class CommunicationScreenTest {
     }
 
     @Test
-    fun scenarioRunButtonState() {
+    fun scenarioRunButtonVisibility() {
         composeTestRule.setContent {
             CommunicationScreen(emptyList(), currentScenario = null, isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {})
         }
-        composeTestRule.onNodeWithTag("ScenarioRunButton").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("ScenarioRunButton").assertDoesNotExist()
 
         composeTestRule.setContent {
             CommunicationScreen(emptyList(), currentScenario = "S1", isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {})
         }
-        composeTestRule.onNodeWithTag("ScenarioRunButton").assertIsEnabled()
+        composeTestRule.onNodeWithTag("ScenarioRunButton").assertExists().assertIsEnabled()
 
         composeTestRule.onNodeWithTag("ScenarioSilenceButton").assertExists()
     }

@@ -4,7 +4,7 @@ import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
 import com.lnkv.nfcemulator.CommunicationLog
-import com.lnkv.nfcemulator.SettingsManager
+import com.lnkv.nfcemulator.ScenarioManager
 
 /**
  * Service that handles ISO 14443-4 (APDU) communication. It responds to incoming
@@ -12,51 +12,30 @@ import com.lnkv.nfcemulator.SettingsManager
  */
 class TypeAEmulatorService : HostApduService() {
 
-    private var isSelected = false
-
     /**
-     * Processes a command APDU from the external NFC reader. The default
-     * behaviour is configurable through [SettingsManager].
+     * Processes a command APDU from the external NFC reader using the
+     * active scenario and settings.
      */
-    override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
-        if (commandApdu == null) return SettingsManager.unselectedResponse.value.data
-
-        val apduHex = commandApdu.toHex()
-        Log.d(TAG, "APDU: $apduHex")
-        CommunicationLog.add("REQ: $apduHex", false)
-
-        val response = when {
-            isSelectCommand(commandApdu) -> {
-                isSelected = true
-                SELECT_OK
+    override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray? {
+        val response = ScenarioManager.processApdu(commandApdu)
+        if (commandApdu != null) {
+            val apduHex = commandApdu.toHex()
+            Log.d(TAG, "APDU: $apduHex")
+            CommunicationLog.add("REQ: $apduHex", false)
+            if (response != null) {
+                CommunicationLog.add("RESP: ${response.toHex()}", false)
             }
-            isSelected -> SettingsManager.selectedResponse.value.data
-            else -> SettingsManager.unselectedResponse.value.data
         }
-
-        CommunicationLog.add("RESP: ${response.toHex()}", false)
         return response
     }
 
-    /**
-     * Checks whether the incoming APDU is a standard SELECT command.
-     */
-    private fun isSelectCommand(apdu: ByteArray): Boolean {
-        return apdu.size >= 4 &&
-            apdu[0] == 0x00.toByte() &&
-            apdu[1] == 0xA4.toByte() &&
-            apdu[2] == 0x04.toByte()
-    }
-
     override fun onDeactivated(reason: Int) {
-        Log.d(TAG, "Deactivated: ${'$'}reason")
-        isSelected = false
+        Log.d(TAG, "Deactivated: $reason")
+        ScenarioManager.onDeactivated()
     }
 
     companion object {
         private const val TAG = "TypeAEmulatorService"
-
-        private val SELECT_OK = byteArrayOf(0x90.toByte(), 0x00.toByte())
     }
 }
 

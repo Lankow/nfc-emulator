@@ -40,10 +40,13 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -409,8 +412,7 @@ enum class Screen(val label: String) {
 
 enum class StepType(val label: String) {
     Select("Select"),
-    RequestResponse("Request/Response"),
-    Silence("Silence")
+    RequestResponse("Request/Response")
 }
 
 data class Step(
@@ -542,6 +544,8 @@ fun MainScreen() {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }
     val logEntries by CommunicationLog.entries.collectAsState()
     val currentScenario by ScenarioManager.current.collectAsState()
+    val isRunning by ScenarioManager.running.collectAsState()
+    val isSilenced by ScenarioManager.silenced.collectAsState()
     val context = LocalContext.current
 
     androidx.compose.material3.Scaffold(
@@ -570,8 +574,18 @@ fun MainScreen() {
                   CommunicationScreen(
                       logEntries,
                       currentScenario,
-                      onRunScenario = { name -> ScenarioManager.setCurrent(context, name) },
-                      onClearScenario = { ScenarioManager.setCurrent(context, null) },
+                      isRunning,
+                      isSilenced,
+                      onToggleRun = {
+                          if (currentScenario != null) {
+                              ScenarioManager.setRunning(!isRunning)
+                          }
+                      },
+                      onClearScenario = {
+                          ScenarioManager.setCurrent(context, null)
+                          ScenarioManager.setRunning(false)
+                      },
+                      onToggleSilence = { ScenarioManager.toggleSilence() },
                       modifier = Modifier.padding(padding)
                   )
               Screen.Scenario ->
@@ -596,8 +610,11 @@ fun MainScreen() {
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
     currentScenario: String?,
-    onRunScenario: (String) -> Unit,
+    isRunning: Boolean,
+    isSilenced: Boolean,
+    onToggleRun: () -> Unit,
     onClearScenario: () -> Unit,
+    onToggleSilence: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
@@ -635,18 +652,45 @@ fun CommunicationScreen(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(
-                    onClick = { currentScenario?.let(onRunScenario) },
+                    onClick = onToggleRun,
                     enabled = currentScenario != null,
-                    modifier = Modifier.testTag("ScenarioRunButton")
+                    modifier = Modifier.size(40.dp).testTag("ScenarioRunButton"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Run")
+                    Icon(
+                        if (isRunning) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = if (isRunning) "Stop" else "Run",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
                 Button(
                     onClick = onClearScenario,
                     enabled = currentScenario != null,
-                    modifier = Modifier.testTag("ScenarioClearButton")
+                    modifier = Modifier.size(40.dp).testTag("ScenarioClearButton"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Clear")
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Button(
+                    onClick = onToggleSilence,
+                    modifier = Modifier.size(40.dp).testTag("ScenarioSilenceButton"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(
+                        if (isSilenced) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                        contentDescription = if (isSilenced) "Unsilence" else "Silence",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
         }

@@ -30,6 +30,7 @@ import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Checkbox
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
@@ -39,10 +40,13 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -152,6 +156,7 @@ class MainActivity : ComponentActivity() {
         }
 
         ScenarioManager.load(this)
+        SettingsManager.load(this)
 
         setContent {
             NFCEmulatorTheme {
@@ -286,41 +291,20 @@ fun <T> EnumSpinner(
 fun StepEditor(
     modifier: Modifier = Modifier,
     step: Step,
-    availableSteps: List<Step> = emptyList(),
     onSave: (Step) -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(step.name) }
-    var trigger by remember {
-        mutableStateOf(
-            if (availableSteps.isEmpty() && step.trigger == StepTrigger.PreviousStep)
-                StepTrigger.ServerRequest else step.trigger
-        )
-    }
-    var action by remember { mutableStateOf(step.action) }
+    var type by remember { mutableStateOf(step.type) }
+    var aid by remember { mutableStateOf(step.aid) }
+    var singleSelect by remember { mutableStateOf(step.singleSelect) }
     var request by remember { mutableStateOf(step.request) }
     var response by remember { mutableStateOf(step.response) }
-    var delayMode by remember { mutableStateOf(step.delayMode) }
-    var duration by remember {
-        mutableStateOf(
-            when (delayMode) {
-                DelayMode.Duration -> step.durationMs.toString()
-                DelayMode.Occurrences -> step.occurrences.toString()
-                DelayMode.Always -> ""
-            }
-        )
-    }
-    val prevStepOptions = availableSteps.map { it.name }
-    var previousStep by remember { mutableStateOf(step.previousStepName ?: prevStepOptions.firstOrNull()) }
-
-    val triggerOptions = if (prevStepOptions.isEmpty()) {
-        StepTrigger.entries.filter { it != StepTrigger.PreviousStep }
-    } else StepTrigger.entries.toList()
-
+    var needsSelection by remember { mutableStateOf(step.needsSelection) }
     val hexRegex = remember { Regex("^[0-9A-Fa-f]*$") }
-    val requestValid = trigger != StepTrigger.NfcRequest || (request.matches(hexRegex) && request.length % 2 == 0)
-    val responseValid = action != StepAction.NfcResponse || (response.matches(hexRegex) && response.length % 2 == 0)
-    val durationValid = delayMode == DelayMode.Always || duration.toIntOrNull()?.let { it in 1..1_000_000 } == true
+    val aidValid = type != StepType.Select || (aid.matches(hexRegex) && aid.length % 2 == 0)
+    val reqValid = type != StepType.RequestResponse || (request.matches(hexRegex) && request.length % 2 == 0)
+    val respValid = type != StepType.RequestResponse || (response.matches(hexRegex) && response.length % 2 == 0)
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -337,128 +321,58 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.CenterHorizontally)
-                .testTag("StepNameDivider")
-        )
-        Spacer(modifier = Modifier.height(8.dp))
         EnumSpinner(
-            label = "Trigger",
-            options = triggerOptions,
-            selected = trigger,
+            label = "Type",
+            options = StepType.entries.toList(),
+            selected = type,
             labelMapper = { it.label },
-            onSelected = { trigger = it },
-            modifier = Modifier.fillMaxWidth().testTag("TriggerSpinner")
+            onSelected = { type = it },
+            modifier = Modifier.fillMaxWidth().testTag("TypeSpinner")
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = request,
-            onValueChange = { input ->
-                val filtered = if (trigger == StepTrigger.NfcRequest) input.uppercase() else input
-                if (trigger != StepTrigger.NfcRequest || filtered.matches(hexRegex)) request = filtered
-            },
-            label = { Text("Request") },
-            isError = trigger == StepTrigger.NfcRequest && (request.isNotEmpty() && request.length % 2 != 0),
-            modifier = Modifier.fillMaxWidth(),
-            enabled = trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)
-        )
-        if (prevStepOptions.isNotEmpty()) {
+        if (type == StepType.Select) {
             Spacer(modifier = Modifier.height(8.dp))
-            EnumSpinner(
-                label = "Previous Step",
-                options = prevStepOptions,
-                selected = previousStep ?: prevStepOptions.first(),
-                labelMapper = { it },
-                onSelected = { previousStep = it },
-                modifier = Modifier.fillMaxWidth().testTag("PrevStepSpinner"),
-                enabled = trigger == StepTrigger.PreviousStep
+            OutlinedTextField(
+                value = aid,
+                onValueChange = { input ->
+                    val filtered = input.uppercase()
+                    if (filtered.matches(hexRegex)) aid = filtered
+                },
+                label = { Text("AID") },
+                isError = aid.isNotEmpty() && aid.length % 2 != 0,
+                modifier = Modifier.fillMaxWidth()
             )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = singleSelect, onCheckedChange = { singleSelect = it })
+                Text("Single Select")
+            }
+        } else if (type == StepType.RequestResponse) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = request,
+                onValueChange = { input ->
+                    val filtered = input.uppercase()
+                    if (filtered.matches(hexRegex)) request = filtered
+                },
+                label = { Text("Request") },
+                isError = request.isNotEmpty() && request.length % 2 != 0,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = response,
+                onValueChange = { input ->
+                    val filtered = input.uppercase()
+                    if (filtered.matches(hexRegex)) response = filtered
+                },
+                label = { Text("Response") },
+                isError = response.isNotEmpty() && response.length % 2 != 0,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = needsSelection, onCheckedChange = { needsSelection = it })
+                Text("Needs to be selected")
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.CenterHorizontally)
-                .testTag("StepOptionDivider")
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        EnumSpinner(
-            label = "Action",
-            options = StepAction.entries.toList(),
-            selected = action,
-            labelMapper = { it.label },
-            onSelected = { action = it },
-            modifier = Modifier.fillMaxWidth().testTag("ActionSpinner")
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = response,
-            onValueChange = { input ->
-                val filtered = if (action == StepAction.NfcResponse) input.uppercase() else input
-                if (action != StepAction.NfcResponse || filtered.matches(hexRegex)) response = filtered
-            },
-            label = { Text("Response") },
-            isError = action == StepAction.NfcResponse && (response.isNotEmpty() && response.length % 2 != 0),
-            modifier = Modifier.fillMaxWidth(),
-            enabled = action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SegmentedButton(
-                selected = delayMode == DelayMode.Duration,
-                onClick = {
-                    delayMode = DelayMode.Duration
-                    duration = step.durationMs.toString()
-                },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                label = { Text("Duration") }
-            )
-            SegmentedButton(
-                selected = delayMode == DelayMode.Occurrences,
-                onClick = {
-                    delayMode = DelayMode.Occurrences
-                    duration = step.occurrences.toString()
-                },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                label = { Text("Occurrences") }
-            )
-            SegmentedButton(
-                selected = delayMode == DelayMode.Always,
-                onClick = {
-                    delayMode = DelayMode.Always
-                    duration = ""
-                },
-                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                label = { Text("Always") }
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = duration,
-            onValueChange = { input ->
-                val filtered = input.filter { it.isDigit() }
-                val value = filtered.toIntOrNull()
-                duration = when {
-                    filtered.isEmpty() -> ""
-                    value == null -> duration
-                    else -> value.coerceIn(1, 1_000_000).toString()
-                }
-            },
-            label = {
-                Text(
-                    when (delayMode) {
-                        DelayMode.Duration -> "Duration [ms]"
-                        DelayMode.Occurrences -> "Times"
-                        DelayMode.Always -> "Duration [ms]"
-                    }
-                )
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth().testTag("StepDuration"),
-            enabled = delayMode != DelayMode.Always
-        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -467,23 +381,15 @@ fun StepEditor(
             Button(
                 onClick = {
                     step.name = name
-                    step.trigger = trigger
-                    step.action = action
-                    step.request = if (trigger in listOf(StepTrigger.ServerRequest, StepTrigger.NfcRequest)) request else ""
-                    step.response = if (action in listOf(StepAction.ServerResponse, StepAction.NfcResponse)) response else ""
-                    step.previousStepName = if (trigger == StepTrigger.PreviousStep) previousStep else null
-                    step.delayMode = delayMode
-                    when (delayMode) {
-                        DelayMode.Duration -> step.durationMs = duration.toInt()
-                        DelayMode.Occurrences -> step.occurrences = duration.toInt()
-                        DelayMode.Always -> {
-                            step.durationMs = 0
-                            step.occurrences = 0
-                        }
-                    }
+                    step.type = type
+                    step.aid = if (type == StepType.Select) aid else ""
+                    step.singleSelect = if (type == StepType.Select) singleSelect else false
+                    step.request = if (type == StepType.RequestResponse) request else ""
+                    step.response = if (type == StepType.RequestResponse) response else ""
+                    step.needsSelection = if (type == StepType.RequestResponse) needsSelection else false
                     onSave(step)
                 },
-                enabled = requestValid && responseValid && durationValid,
+                enabled = aidValid && reqValid && respValid,
                 modifier = Modifier.weight(1f).testTag("StepSave")
             ) { Text("Save") }
             Button(
@@ -504,30 +410,19 @@ enum class Screen(val label: String) {
     Aid("AID")
 }
 
-enum class StepTrigger(val label: String) {
-    ServerRequest("Server Request"),
-    NfcRequest("Nfc Request"),
-    PreviousStep("Previous Step")
+enum class StepType(val label: String) {
+    Select("Select"),
+    RequestResponse("Request/Response")
 }
-
-enum class StepAction(val label: String) {
-    ServerResponse("Server Response"),
-    NfcResponse("Nfc Response"),
-    Silenced("Silenced")
-}
-
-enum class DelayMode { Duration, Occurrences, Always }
 
 data class Step(
     var name: String,
-    var trigger: StepTrigger = StepTrigger.ServerRequest,
-    var action: StepAction = StepAction.ServerResponse,
+    var type: StepType = StepType.Select,
+    var aid: String = "",
+    var singleSelect: Boolean = false,
     var request: String = "",
     var response: String = "",
-    var previousStepName: String? = null,
-    var durationMs: Int = 1000,
-    var delayMode: DelayMode = DelayMode.Duration,
-    var occurrences: Int = 1
+    var needsSelection: Boolean = false
 )
 
 data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
@@ -540,14 +435,12 @@ private fun saveScenarios(context: Context, scenarios: List<Scenario>) {
         val stepString = scenario.steps.joinToString(",") { step ->
             listOf(
                 step.name,
-                step.trigger.name,
-                step.action.name,
+                step.type.name,
+                step.aid,
+                step.singleSelect.toString(),
                 step.request,
                 step.response,
-                step.previousStepName ?: "",
-                step.durationMs.toString(),
-                step.delayMode.name,
-                step.occurrences.toString()
+                step.needsSelection.toString()
             ).joinToString(";")
         }
         scenario.name + "|" + stepString
@@ -566,24 +459,20 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
             parts[1].split(",").map { stepStr ->
                 val sp = stepStr.split(";")
                 val stepName = sp.getOrElse(0) { "" }
-                val trigger = sp.getOrElse(1) { StepTrigger.ServerRequest.name }
-                val action = sp.getOrElse(2) { StepAction.ServerResponse.name }
-                val request = sp.getOrElse(3) { "" }
-                val response = sp.getOrElse(4) { "" }
-                val prev = sp.getOrElse(5) { "" }
-                val duration = sp.getOrElse(6) { "1000" }
-                val mode = sp.getOrElse(7) { DelayMode.Duration.name }
-                val occurrences = sp.getOrElse(8) { "1" }
+                val type = sp.getOrElse(1) { StepType.Select.name }
+                val aid = sp.getOrElse(2) { "" }
+                val single = sp.getOrElse(3) { "false" }
+                val request = sp.getOrElse(4) { "" }
+                val response = sp.getOrElse(5) { "" }
+                val needs = sp.getOrElse(6) { "false" }
                 Step(
                     stepName,
-                    StepTrigger.valueOf(trigger),
-                    StepAction.valueOf(action),
+                    StepType.valueOf(type),
+                    aid,
+                    single.toBoolean(),
                     request,
                     response,
-                    prev.ifEmpty { null },
-                    duration.toIntOrNull() ?: 1000,
-                    DelayMode.valueOf(mode),
-                    occurrences.toIntOrNull() ?: 1
+                    needs.toBoolean()
                 )
             }.toMutableStateList()
         } else mutableStateListOf()
@@ -603,14 +492,12 @@ private fun exportScenarios(context: Context, scenarios: List<Scenario>, uri: Ur
                             put(
                                 JSONObject().apply {
                                     put("name", step.name)
-                                    put("trigger", step.trigger.name)
-                                    put("action", step.action.name)
+                                    put("type", step.type.name)
+                                    put("aid", step.aid)
+                                    put("single", step.singleSelect)
                                     put("request", step.request)
                                     put("response", step.response)
-                                    put("previous", step.previousStepName ?: "")
-                                    put("duration", step.durationMs)
-                                    put("delayMode", step.delayMode.name)
-                                    put("occurrences", step.occurrences)
+                                    put("needsSelection", step.needsSelection)
                                 }
                             )
                         }
@@ -637,14 +524,12 @@ private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
             steps.add(
                 Step(
                     stepObj.getString("name"),
-                    StepTrigger.valueOf(stepObj.getString("trigger")),
-                    StepAction.valueOf(stepObj.getString("action")),
+                    StepType.valueOf(stepObj.getString("type")),
+                    stepObj.getString("aid"),
+                    stepObj.optBoolean("single", false),
                     stepObj.getString("request"),
                     stepObj.getString("response"),
-                    stepObj.optString("previous").ifBlank { null },
-                    stepObj.optInt("duration", 1000),
-                    DelayMode.valueOf(stepObj.getString("delayMode")),
-                    stepObj.optInt("occurrences", 1)
+                    stepObj.optBoolean("needsSelection", false)
                 )
             )
         }
@@ -659,6 +544,8 @@ fun MainScreen() {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Communication) }
     val logEntries by CommunicationLog.entries.collectAsState()
     val currentScenario by ScenarioManager.current.collectAsState()
+    val isRunning by ScenarioManager.running.collectAsState()
+    val isSilenced by ScenarioManager.silenced.collectAsState()
     val context = LocalContext.current
 
     androidx.compose.material3.Scaffold(
@@ -687,8 +574,31 @@ fun MainScreen() {
                   CommunicationScreen(
                       logEntries,
                       currentScenario,
-                      onRunScenario = { name -> ScenarioManager.setCurrent(context, name) },
-                      onClearScenario = { ScenarioManager.setCurrent(context, null) },
+                      isRunning,
+                      isSilenced,
+                      onToggleRun = {
+                          if (currentScenario != null) {
+                              val starting = !isRunning
+                              ScenarioManager.setRunning(starting)
+                              CommunicationLog.add(
+                                  if (starting) "STATE-APP: Scenario started." else "STATE-APP: Scenario stopped.",
+                                  true,
+                                  if (starting) true else false
+                              )
+                          }
+                      },
+                      onClearScenario = {
+                          ScenarioManager.setCurrent(context, null)
+                          ScenarioManager.setRunning(false)
+                      },
+                      onToggleSilence = {
+                          ScenarioManager.toggleSilence()
+                          CommunicationLog.add(
+                              if (!isSilenced) "STATE-APP: Scenario silenced." else "STATE-APP: Scenario unsilenced.",
+                              true,
+                              if (!isSilenced) false else true
+                          )
+                      },
                       modifier = Modifier.padding(padding)
                   )
               Screen.Scenario ->
@@ -713,8 +623,11 @@ fun MainScreen() {
 fun CommunicationScreen(
     entries: List<CommunicationLog.Entry>,
     currentScenario: String?,
-    onRunScenario: (String) -> Unit,
+    isRunning: Boolean,
+    isSilenced: Boolean,
+    onToggleRun: () -> Unit,
     onClearScenario: () -> Unit,
+    onToggleSilence: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
@@ -751,19 +664,46 @@ fun CommunicationScreen(
                 modifier = Modifier.weight(1f)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = { currentScenario?.let(onRunScenario) },
-                    enabled = currentScenario != null,
-                    modifier = Modifier.testTag("ScenarioRunButton")
-                ) {
-                    Text("Run")
+                if (currentScenario != null) {
+                    Button(
+                        onClick = onToggleRun,
+                        modifier = Modifier.size(40.dp).testTag("ScenarioRunButton"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            if (isRunning) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                            contentDescription = if (isRunning) "Stop" else "Run",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Button(
+                        onClick = onClearScenario,
+                        modifier = Modifier.size(40.dp).testTag("ScenarioClearButton"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
                 Button(
-                    onClick = onClearScenario,
-                    enabled = currentScenario != null,
-                    modifier = Modifier.testTag("ScenarioClearButton")
+                    onClick = onToggleSilence,
+                    modifier = Modifier.size(40.dp).testTag("ScenarioSilenceButton"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Clear")
+                    Icon(
+                        if (isSilenced) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                        contentDescription = if (isSilenced) "Unsilence" else "Silence",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
         }
@@ -1135,19 +1075,18 @@ fun ScenarioEditor(
     var showClearDialog by remember { mutableStateOf(false) }
     var editingStepIndex by remember { mutableStateOf<Int?>(null) }
     var showTitleAlert by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val selectedResp by SettingsManager.selectedResponse.collectAsState()
+    val unselectedResp by SettingsManager.unselectedResponse.collectAsState()
 
     if (editingStepIndex != null) {
         val isNewStep = editingStepIndex == -1
         val workingStep = remember(editingStepIndex) {
             if (isNewStep) Step("") else steps[editingStepIndex!!].copy()
         }
-        val available = remember(editingStepIndex, steps) {
-            steps.filterIndexed { index, _ -> index != editingStepIndex }
-        }
         StepEditor(
             modifier = modifier,
             step = workingStep,
-            availableSteps = available,
             onSave = { updated ->
                 if (isNewStep) steps.add(updated) else steps[editingStepIndex!!] = updated
                 editingStepIndex = null
@@ -1169,6 +1108,24 @@ fun ScenarioEditor(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().testTag("ScenarioTitle")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            EnumSpinner(
+                label = "When selected, respond",
+                options = DefaultResponse.entries.toList(),
+                selected = selectedResp,
+                labelMapper = { it.label },
+                onSelected = { SettingsManager.setSelectedResponse(context, it) },
+                modifier = Modifier.fillMaxWidth().testTag("SelectedRespSpinner")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            EnumSpinner(
+                label = "When not selected, respond",
+                options = DefaultResponse.entries.toList(),
+                selected = unselectedResp,
+                labelMapper = { it.label },
+                onSelected = { SettingsManager.setUnselectedResponse(context, it) },
+                modifier = Modifier.fillMaxWidth().testTag("UnselectedRespSpinner")
             )
             Spacer(modifier = Modifier.height(8.dp))
             Box(
@@ -1419,6 +1376,7 @@ fun AidScreen(modifier: Modifier = Modifier) {
         }
     }
 }
+
 
 private fun getLocalIpAddress(context: Context): String? {
     return try {

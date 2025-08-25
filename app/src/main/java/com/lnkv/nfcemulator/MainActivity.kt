@@ -127,8 +127,11 @@ class MainActivity : ComponentActivity() {
         componentName = ComponentName(this, TypeAEmulatorService::class.java)
         prefs = getSharedPreferences("nfc_aids", MODE_PRIVATE)
 
+        AppContextHolder.init(applicationContext)
+        AidManager.init(cardEmulation, componentName, prefs)
+
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
-        registerAids(storedAids)
+        AidManager.registerAids(storedAids)
 
         val serverPrefs = getSharedPreferences("server_prefs", MODE_PRIVATE)
         if (serverPrefs.getBoolean("isExternal", true) &&
@@ -165,20 +168,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun registerAids(aids: List<String>) {
-        if (aids.isEmpty()) {
-            cardEmulation.removeAidsForService(
-                componentName,
-                CardEmulation.CATEGORY_OTHER
-            )
-        } else {
-            cardEmulation.registerAidsForService(
-                componentName,
-                CardEmulation.CATEGORY_OTHER,
-                aids
-            )
-        }
-    }
 }
 
 @Composable
@@ -1406,7 +1395,6 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     var autoStart by rememberSaveable { mutableStateOf(prefs.getBoolean("autoStart", false)) }
     val internalState = InternalServerManager.state
     val isServerRunning = internalState == "Running"
-    val connectedDevices = InternalServerManager.connectedDevices
     val localIp = remember { getLocalIpAddress(context) }
     val ipRegex =
         Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}:(\\d{1,5})$")
@@ -1686,26 +1674,6 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.weight(1f).testTag("StartButton")
                 ) {
                     Text(if (isServerRunning) "Close" else "Start")
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Connected devices (${connectedDevices.size})")
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .testTag("ConnectedList")
-                    .padding(8.dp)
-            ) {
-                if (connectedDevices.isNotEmpty()) {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(connectedDevices) { device ->
-                            Text(device)
-                        }
-                    }
                 }
             }
         }

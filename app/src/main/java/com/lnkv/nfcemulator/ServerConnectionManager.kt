@@ -76,6 +76,7 @@ object ServerConnectionManager {
                                         }
                                         if (resp.isNotBlank() && resp != lastResp) {
                                             CommunicationLog.add("GET RESP: $resp", true, true)
+                                            ServerJsonHandler.handle(resp)
                                             lastResp = resp
                                         }
                                     } catch (e: Exception) {

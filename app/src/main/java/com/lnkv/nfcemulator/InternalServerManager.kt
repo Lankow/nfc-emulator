@@ -41,7 +41,19 @@ object InternalServerManager {
                         CommunicationLog.add("STATE-INT: Device connected $id.", true, true)
                         launch {
                             try {
-                                socket.getInputStream().readBytes()
+                                val bytes = socket.getInputStream().readBytes()
+                                val request = bytes.toString(Charsets.UTF_8)
+                                val body = request.substringAfter("\r\n\r\n", "")
+                                if (body.isNotBlank()) {
+                                    CommunicationLog.add("POST: $body", true, true)
+                                    ServerJsonHandler.handle(body)
+                                }
+                                try {
+                                    socket.getOutputStream().write(
+                                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK".toByteArray()
+                                    )
+                                } catch (_: Exception) {
+                                }
                             } catch (_: Exception) {
                             } finally {
                                 clients.remove(id)

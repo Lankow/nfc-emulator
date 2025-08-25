@@ -127,8 +127,11 @@ class MainActivity : ComponentActivity() {
         componentName = ComponentName(this, TypeAEmulatorService::class.java)
         prefs = getSharedPreferences("nfc_aids", MODE_PRIVATE)
 
+        AppContextHolder.init(applicationContext)
+        AidManager.init(cardEmulation, componentName, prefs)
+
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
-        registerAids(storedAids)
+        AidManager.registerAids(storedAids)
 
         val serverPrefs = getSharedPreferences("server_prefs", MODE_PRIVATE)
         if (serverPrefs.getBoolean("isExternal", true) &&
@@ -165,20 +168,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun registerAids(aids: List<String>) {
-        if (aids.isEmpty()) {
-            cardEmulation.removeAidsForService(
-                componentName,
-                CardEmulation.CATEGORY_OTHER
-            )
-        } else {
-            cardEmulation.registerAidsForService(
-                componentName,
-                CardEmulation.CATEGORY_OTHER,
-                aids
-            )
-        }
-    }
 }
 
 @Composable

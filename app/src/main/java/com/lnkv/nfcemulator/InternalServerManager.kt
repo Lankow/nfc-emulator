@@ -1,6 +1,5 @@
 package com.lnkv.nfcemulator
 
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -22,7 +21,6 @@ object InternalServerManager {
 
     private var serverSocket: ServerSocket? = null
     private val clients = mutableMapOf<String, Socket>()
-    val connectedDevices = mutableStateListOf<String>()
 
     fun start(port: Int) {
         if (serverSocket != null || isProcessing) return
@@ -37,8 +35,7 @@ object InternalServerManager {
                         val socket = server.accept()
                         val id = "${socket.inetAddress.hostAddress}:${socket.port}"
                         clients[id] = socket
-                        connectedDevices.add(id)
-                        CommunicationLog.add("STATE-INT: Device connected $id.", true, true)
+                        CommunicationLog.add("STATE-INT: Device $id started transmission.", true, true)
                         launch {
                             try {
                                 val reader = socket.getInputStream().bufferedReader()
@@ -73,8 +70,7 @@ object InternalServerManager {
                             } catch (_: Exception) {
                             } finally {
                                 clients.remove(id)
-                                connectedDevices.remove(id)
-                                CommunicationLog.add("STATE-INT: Device disconnected $id.", true, false)
+                                CommunicationLog.add("STATE-INT: Device $id finished transmission.", true, false)
                                 try { socket.close() } catch (_: Exception) {}
                             }
                         }
@@ -84,7 +80,6 @@ object InternalServerManager {
                     try { server.close() } catch (_: Exception) {}
                     clients.values.forEach { try { it.close() } catch (_: Exception) {} }
                     clients.clear()
-                    connectedDevices.clear()
                     if (state != "Stopped") {
                         state = "Stopped"
                         CommunicationLog.add("STATE-INT: Server stopped.", true, false)
@@ -107,7 +102,6 @@ object InternalServerManager {
             serverSocket = null
             clients.values.forEach { try { it.close() } catch (_: Exception) {} }
             clients.clear()
-            connectedDevices.clear()
             if (state != "Stopped") {
                 state = "Stopped"
                 CommunicationLog.add("STATE-INT: Server stopped.", true, false)

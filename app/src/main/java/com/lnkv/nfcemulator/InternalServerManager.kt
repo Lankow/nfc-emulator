@@ -41,17 +41,33 @@ object InternalServerManager {
                         CommunicationLog.add("STATE-INT: Device connected $id.", true, true)
                         launch {
                             try {
-                                val bytes = socket.getInputStream().readBytes()
-                                val request = bytes.toString(Charsets.UTF_8)
-                                val body = request.substringAfter("\r\n\r\n", "")
+                                val reader = socket.getInputStream().bufferedReader()
+                                val headers = mutableListOf<String>()
+                                while (true) {
+                                    val line = reader.readLine() ?: break
+                                    if (line.isEmpty()) break
+                                    headers.add(line)
+                                }
+                                val contentLength = headers.firstOrNull {
+                                    it.startsWith("Content-Length", ignoreCase = true)
+                                }?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
+                                val bodyChars = CharArray(contentLength)
+                                var read = 0
+                                while (read < contentLength) {
+                                    val r = reader.read(bodyChars, read, contentLength - read)
+                                    if (r == -1) break
+                                    read += r
+                                }
+                                val body = String(bodyChars, 0, read)
                                 if (body.isNotBlank()) {
                                     CommunicationLog.add("POST: $body", true, true)
                                     ServerJsonHandler.handle(body)
                                 }
                                 try {
-                                    socket.getOutputStream().write(
-                                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK".toByteArray()
-                                    )
+                                    socket.getOutputStream().apply {
+                                        write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK".toByteArray())
+                                        flush()
+                                    }
                                 } catch (_: Exception) {
                                 }
                             } catch (_: Exception) {

@@ -25,6 +25,47 @@ You can also open the project in Android Studio and run it directly on a connect
 3. Tap **Save AIDs** and hold the device near an NFC reader.
 4. The communication log at the bottom shows APDU requests (red) and responses (green).
 
+## HTTP Control API
+
+The app exposes a lightweight HTTP API that allows remote control over AIDs,
+logging and scenarios. Enable the server from the **Server** screen and note
+the device's IP address and chosen port. Commands are sent as `POST` requests
+with a JSON body to `http://<DEVICE_IP>:<PORT>/`.
+
+### Command structure
+
+Each request must contain a top-level `Type` field that determines the payload:
+
+#### `Type: "Aid"`
+
+Manage registered Application Identifiers.
+
+```json
+{
+  "Type": "Aid",
+  "Add": "A0000002471001",   // optional AID to add
+  "Remove": "",              // optional AID to remove
+  "Clear": false              // set true to unregister all AIDs
+}
+```
+
+#### `Type: "Comm"`
+
+Control the communication log and scenarios.
+
+```json
+{
+  "Type": "Comm",
+  "Clear": false,            // clear the log when true
+  "Save": true,              // save log to file when true
+  "Mute": false,             // mute/unmute communication
+  "CurrentScenario": "Start" // "Start", "Stop" or "Clear"
+}
+```
+
+Requests receive a simple `200 OK` response. Additional command types may be
+introduced in future versions (e.g. `Scenarios`).
+
 ## Code Structure
 
 - `MainActivity` – Compose UI and AID configuration.

@@ -43,11 +43,12 @@ Manage registered Application Identifiers.
 ```json
 {
   "Type": "Aid",
-  "Add": "A0000002471001",   // optional AID to add
-  "Remove": "",              // optional AID to remove
-  "Clear": false              // set true to unregister all AIDs
+  "Add": ["A0000002471001", "A0000002471002"],   // optional AIDs to add
+  "Remove": ["A0000002471003"],                  // optional AIDs to remove
+  "Clear": false                                 // set true to unregister all AIDs
 }
 ```
+`Add` and `Remove` accept either a single string or an array of strings.
 
 #### `Type: "Comm"`
 
@@ -64,7 +65,45 @@ Control the communication log and scenarios.
 ```
 
 Requests receive a simple `200 OK` response. Additional command types may be
-introduced in future versions (e.g. `Scenarios`).
+introduced in future versions.
+
+#### `Type: "Scenarios"`
+
+Create or manage scenarios.
+Steps may be of type `Select`, which waits for an AID selection, or
+`RequestResponse`, which returns a predefined response when a matching APDU
+request is received. Use `needsSelection` to require that a `Select` step has
+completed before the request is matched.
+
+```json
+{
+  "Type": "Scenarios",
+  "Add": [
+    {
+      "name": "MyScenario",
+      "steps": [
+        {
+          "name": "Select",
+          "type": "Select",
+          "aid": "F0010203040506",
+          "singleSelect": false
+        },
+        {
+          "name": "Ping",
+          "type": "RequestResponse",
+          "request": "00B0950000",
+          "response": "6A82",
+          "needsSelection": true
+        }
+      ]
+    }
+  ],
+  "Remove": ["OldScenario"],    // optional names to remove
+  "Clear": false,                // clear all scenarios when true
+  "Current": "MyScenario"       // set current scenario
+}
+```
+`Add` and `Remove` accept arrays; `Add` may also be a single scenario object and `Remove` a single name.
 
 ## Code Structure
 

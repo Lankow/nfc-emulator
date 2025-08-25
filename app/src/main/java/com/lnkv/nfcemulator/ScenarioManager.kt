@@ -55,6 +55,28 @@ object ScenarioManager {
         _silenced.value = !_silenced.value
     }
 
+    fun addScenario(context: Context, scenario: Scenario) {
+        val scenarios = loadAllScenarios(context)
+        scenarios.removeAll { it.name == scenario.name }
+        scenarios.add(scenario)
+        saveAllScenarios(context, scenarios)
+    }
+
+    fun removeScenario(context: Context, name: String) {
+        val scenarios = loadAllScenarios(context)
+        scenarios.removeAll { it.name == name }
+        saveAllScenarios(context, scenarios)
+        if (_current.value == name) {
+            setCurrent(context, null)
+        }
+    }
+
+    fun clearScenarios(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit().remove(SCENARIO_KEY).apply()
+        setCurrent(context, null)
+    }
+
     fun onDeactivated() {
         isSelected = false
     }
@@ -124,6 +146,50 @@ object ScenarioManager {
             }
         } else emptyList()
         return Scenario(name, steps.toMutableList().toMutableStateList())
+    }
+
+    private fun loadAllScenarios(context: Context): MutableList<Scenario> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: emptySet()
+        return serialized.map { line ->
+            val parts = line.split("|", limit = 2)
+            val name = parts[0]
+            val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
+                parts[1].split(",").mapNotNull { stepStr ->
+                    val sp = stepStr.split(";")
+                    if (sp.size < 7) return@mapNotNull null
+                    Step(
+                        sp[0],
+                        StepType.valueOf(sp[1]),
+                        sp[2],
+                        sp[3].toBoolean(),
+                        sp[4],
+                        sp[5],
+                        sp[6].toBoolean()
+                    )
+                }.toMutableList().toMutableStateList()
+            } else mutableStateListOf()
+            Scenario(name, steps)
+        }.toMutableList()
+    }
+
+    private fun saveAllScenarios(context: Context, scenarios: List<Scenario>) {
+        val serialized = scenarios.map { scenario ->
+            val stepString = scenario.steps.joinToString(",") { step ->
+                listOf(
+                    step.name,
+                    step.type.name,
+                    step.aid,
+                    step.singleSelect.toString(),
+                    step.request,
+                    step.response,
+                    step.needsSelection.toString()
+                ).joinToString(";")
+            }
+            scenario.name + "|" + stepString
+        }.toSet()
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()
     }
 
     private fun isSelectCommand(apdu: ByteArray): Boolean {

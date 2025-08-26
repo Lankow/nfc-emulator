@@ -23,7 +23,8 @@ You can also open the project in Android Studio and run it directly on a connect
 1. Install the app on an NFC-capable Android device.
 2. Enter up to two Application Identifiers (AIDs) in the provided fields.
 3. Tap **Save AIDs** and hold the device near an NFC reader.
-4. The communication log at the bottom shows APDU requests (red) and responses (green).
+4. The communication log at the bottom shows APDU requests (red) and responses (green),
+   along with scenario state changes and NFC activation or deactivation events.
 
 ## HTTP Control API
 

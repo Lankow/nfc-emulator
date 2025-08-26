@@ -570,11 +570,6 @@ fun MainScreen() {
                           if (currentScenario != null) {
                               val starting = !isRunning
                               ScenarioManager.setRunning(starting)
-                              CommunicationLog.add(
-                                  if (starting) "STATE-APP: Scenario started." else "STATE-APP: Scenario stopped.",
-                                  true,
-                                  if (starting) true else false
-                              )
                           }
                       },
                       onClearScenario = {
@@ -583,11 +578,6 @@ fun MainScreen() {
                       },
                       onToggleSilence = {
                           ScenarioManager.toggleSilence()
-                          CommunicationLog.add(
-                              if (!isSilenced) "STATE-APP: Scenario silenced." else "STATE-APP: Scenario unsilenced.",
-                              true,
-                              if (!isSilenced) false else true
-                          )
                       },
                       modifier = Modifier.padding(padding)
                   )

@@ -48,11 +48,25 @@ object ScenarioManager {
 
     fun setRunning(running: Boolean) {
         _running.value = running
-        if (!running) resetState()
+        val name = _current.value
+        if (running && name != null) {
+            CommunicationLog.add("STATE-SCEN: Scenario '$name' started.", true, true)
+        } else if (!running && name != null) {
+            CommunicationLog.add("STATE-SCEN: Scenario '$name' stopped.", true, false)
+            resetState()
+        } else if (!running) {
+            resetState()
+        }
     }
 
     fun toggleSilence() {
         _silenced.value = !_silenced.value
+        val name = _current.value?.let { "Scenario '$it'" } ?: "Scenario"
+        if (_silenced.value) {
+            CommunicationLog.add("STATE-SCEN: $name silenced.", true, false)
+        } else {
+            CommunicationLog.add("STATE-SCEN: $name unsilenced.", true, true)
+        }
     }
 
     fun addScenario(context: Context, scenario: Scenario) {

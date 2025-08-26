@@ -60,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -1349,7 +1350,7 @@ fun AidScreen(modifier: Modifier = Modifier) {
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(aid, modifier = Modifier.weight(1f))
+                        Text(aid, modifier = Modifier.weight(1f), fontSize = 12.sp)
                         IconButton(onClick = {
                             aids.removeAt(index)
                             saveAids(context, aids)

@@ -17,9 +17,11 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
+import android.util.Log
 
 object ServerConnectionManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private const val TAG = "ServerConnMgr"
 
     var state by mutableStateOf("Disconnected")
         private set
@@ -51,8 +53,10 @@ object ServerConnectionManager {
                         true,
                         false
                     )
+                    Log.d(TAG, "connect: Wi-Fi not connected")
                 } else {
                     try {
+                        Log.d(TAG, "connect: opening socket to $ip:$port")
                         val s = withContext(Dispatchers.IO) {
                             Socket().apply {
                                 connect(InetSocketAddress(ip, port), 5000)
@@ -65,6 +69,7 @@ object ServerConnectionManager {
                             true,
                             true
                         )
+                        Log.d(TAG, "connect: success")
                         if (pollingMs > 0) {
                             pollJob?.cancel()
                             lastResp = null
@@ -78,6 +83,7 @@ object ServerConnectionManager {
                                             CommunicationLog.add("GET RESP: $resp", true, true)
                                             ServerJsonHandler.handle(resp)
                                             lastResp = resp
+                                            Log.d(TAG, "poll: $resp")
                                         }
                                     } catch (e: Exception) {
                                         CommunicationLog.add(
@@ -85,6 +91,7 @@ object ServerConnectionManager {
                                             true,
                                             false
                                         )
+                                        Log.d(TAG, "poll error: ${e.message}")
                                     }
                                     delay(pollingMs)
                                 }
@@ -97,6 +104,7 @@ object ServerConnectionManager {
                             true,
                             false
                         )
+                        Log.d(TAG, "connect IO error: ${e.message}")
                     } catch (e: Exception) {
                         state = "Encountered Error (${e.message})"
                         CommunicationLog.add(
@@ -104,6 +112,7 @@ object ServerConnectionManager {
                             true,
                             false
                         )
+                        Log.d(TAG, "connect error: ${e.message}")
                     }
                 }
             } catch (e: SecurityException) {
@@ -113,6 +122,7 @@ object ServerConnectionManager {
                     true,
                     false
                 )
+                Log.d(TAG, "connect security error: ${e.message}")
             } finally {
                 isProcessing = false
             }
@@ -144,12 +154,14 @@ object ServerConnectionManager {
                         true,
                         false
                     )
+                    Log.d(TAG, "disconnect: $ip:$port")
                 } else {
                     CommunicationLog.add(
                         "STATE-EXT: Server Connection Disconnected.",
                         true,
                         false
                     )
+                    Log.d(TAG, "disconnect")
                 }
             }
         }

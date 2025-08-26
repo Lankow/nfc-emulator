@@ -60,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -108,6 +109,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
+import android.util.Log
 
 /**
  * Main activity hosting a bottom navigation menu that switches between
@@ -117,10 +119,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var cardEmulation: CardEmulation
     private lateinit var componentName: ComponentName
     private lateinit var prefs: SharedPreferences
+    private val TAG = "MainActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        Log.d(TAG, "onCreate")
 
         val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         cardEmulation = CardEmulation.getInstance(nfcAdapter)
@@ -131,6 +135,7 @@ class MainActivity : ComponentActivity() {
         AidManager.init(cardEmulation, componentName, prefs)
 
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
+        Log.d(TAG, "storedAids: $storedAids")
         AidManager.registerAids(storedAids)
 
         val serverPrefs = getSharedPreferences("server_prefs", MODE_PRIVATE)
@@ -143,6 +148,7 @@ class MainActivity : ComponentActivity() {
                 val port = ipPort.substringAfter(":").toIntOrNull()
                 val poll = serverPrefs.getString("pollingTime", "0")!!.toLongOrNull() ?: 0
                 if (port != null) {
+                    Log.d(TAG, "autoConnect to $host:$port poll=$poll")
                     ServerConnectionManager.connect(this, host, port, poll)
                 }
             }
@@ -153,13 +159,16 @@ class MainActivity : ComponentActivity() {
             val portStr = serverPrefs.getString("port", "0000")!!
             val portNum = if (staticPort && portStr.isNotBlank()) portStr.toIntOrNull() ?: 0 else 0
             if (ServerConnectionManager.state == "Connected") {
+                Log.d(TAG, "disconnect before autoStart")
                 ServerConnectionManager.disconnect()
             }
+            Log.d(TAG, "autoStart server port=$portNum")
             InternalServerManager.start(portNum)
         }
 
         ScenarioManager.load(this)
         SettingsManager.load(this)
+        Log.d(TAG, "initialization complete")
 
         setContent {
             NFCEmulatorTheme {
@@ -569,11 +578,6 @@ fun MainScreen() {
                           if (currentScenario != null) {
                               val starting = !isRunning
                               ScenarioManager.setRunning(starting)
-                              CommunicationLog.add(
-                                  if (starting) "STATE-APP: Scenario started." else "STATE-APP: Scenario stopped.",
-                                  true,
-                                  if (starting) true else false
-                              )
                           }
                       },
                       onClearScenario = {
@@ -582,11 +586,6 @@ fun MainScreen() {
                       },
                       onToggleSilence = {
                           ScenarioManager.toggleSilence()
-                          CommunicationLog.add(
-                              if (!isSilenced) "STATE-APP: Scenario silenced." else "STATE-APP: Scenario unsilenced.",
-                              true,
-                              if (!isSilenced) false else true
-                          )
                       },
                       modifier = Modifier.padding(padding)
                   )
@@ -1349,7 +1348,7 @@ fun AidScreen(modifier: Modifier = Modifier) {
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(aid, modifier = Modifier.weight(1f))
+                        Text(aid, modifier = Modifier.weight(1f), fontSize = 12.sp)
                         IconButton(onClick = {
                             aids.removeAt(index)
                             saveAids(context, aids)

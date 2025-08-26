@@ -3,11 +3,13 @@ package com.lnkv.nfcemulator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import android.util.Log
 
 /**
  * Holds APDU communication logs between the external reader and the emulator.
  */
 object CommunicationLog {
+    private const val TAG = "CommunicationLog"
     data class Entry(
         val message: String,
         val isServer: Boolean,
@@ -25,6 +27,7 @@ object CommunicationLog {
      * @param isSuccess Optional flag indicating success or failure for colored logs.
      */
     fun add(message: String, isServer: Boolean, isSuccess: Boolean? = null) {
+        Log.d(TAG, "add: $message")
         _entries.value = _entries.value + Entry(message, isServer, isSuccess)
     }
 
@@ -33,6 +36,7 @@ object CommunicationLog {
      * starting a new emulation session.
      */
     fun clear() {
+        Log.d(TAG, "clear")
         _entries.value = emptyList()
     }
 
@@ -40,6 +44,7 @@ object CommunicationLog {
      * Writes all log entries to the provided [file], each message separated by a newline.
      */
     fun saveToFile(file: File) {
+        Log.d(TAG, "saveToFile: ${file.path}")
         val text = _entries.value.joinToString("\n") { it.message }
         file.writeText(text)
     }

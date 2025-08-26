@@ -10,9 +10,11 @@ import kotlinx.coroutines.launch
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
+import android.util.Log
 
 object InternalServerManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private const val TAG = "InternalServer"
 
     var state by mutableStateOf("Stopped")
         private set
@@ -25,6 +27,7 @@ object InternalServerManager {
     fun start(port: Int) {
         if (serverSocket != null || isProcessing) return
         try {
+            Log.d(TAG, "start: port=$port")
             val server = ServerSocket(port)
             serverSocket = server
             state = "Running"
@@ -34,6 +37,7 @@ object InternalServerManager {
                     while (!server.isClosed) {
                         val socket = server.accept()
                         val id = "${socket.inetAddress.hostAddress}:${socket.port}"
+                        Log.d(TAG, "client connected: $id")
                         clients[id] = socket
                         CommunicationLog.add("STATE-INT: Device $id started transmission.", true, true)
                         launch {
@@ -56,6 +60,7 @@ object InternalServerManager {
                                     read += r
                                 }
                                 val body = String(bodyChars, 0, read)
+                                Log.d(TAG, "request: $body")
                                 if (body.isNotBlank()) {
                                     CommunicationLog.add("POST: $body", true, true)
                                     ServerJsonHandler.handle(body)
@@ -67,7 +72,8 @@ object InternalServerManager {
                                     }
                                 } catch (_: Exception) {
                                 }
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
+                                Log.d(TAG, "client error: ${e.message}")
                             } finally {
                                 clients.remove(id)
                                 CommunicationLog.add("STATE-INT: Device $id finished transmission.", true, false)
@@ -75,7 +81,8 @@ object InternalServerManager {
                             }
                         }
                     }
-                } catch (_: SocketException) {
+                } catch (e: SocketException) {
+                    Log.d(TAG, "server socket closed")
                 } finally {
                     try { server.close() } catch (_: Exception) {}
                     clients.values.forEach { try { it.close() } catch (_: Exception) {} }
@@ -87,6 +94,7 @@ object InternalServerManager {
                 }
             }
         } catch (e: Exception) {
+            Log.d(TAG, "start error: ${e.message}")
             state = "Error (${e.message})"
             CommunicationLog.add("STATE-INT: Server start error (${e.message}).", true, false)
         }
@@ -95,6 +103,7 @@ object InternalServerManager {
     fun stop() {
         if (serverSocket == null || isProcessing) return
         isProcessing = true
+        Log.d(TAG, "stop")
         try {
             serverSocket?.close()
         } catch (_: Exception) {

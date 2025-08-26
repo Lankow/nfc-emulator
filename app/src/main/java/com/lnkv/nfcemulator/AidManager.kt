@@ -3,9 +3,11 @@ package com.lnkv.nfcemulator
 import android.content.ComponentName
 import android.content.SharedPreferences
 import android.nfc.cardemulation.CardEmulation
+import android.util.Log
 
 object AidManager {
     private const val PREFS_KEY = "aids"
+    private const val TAG = "AidManager"
 
     lateinit var cardEmulation: CardEmulation
         private set
@@ -15,13 +17,16 @@ object AidManager {
         private set
 
     fun init(cardEmulation: CardEmulation, componentName: ComponentName, prefs: SharedPreferences) {
+        Log.d(TAG, "init: component=$componentName")
         this.cardEmulation = cardEmulation
         this.componentName = componentName
         this.prefs = prefs
     }
 
     fun registerAids(aids: List<String>) {
+        Log.d(TAG, "registerAids: $aids")
         if (aids.isEmpty()) {
+            Log.d(TAG, "registerAids: clearing all")
             cardEmulation.removeAidsForService(
                 componentName,
                 CardEmulation.CATEGORY_OTHER
@@ -36,6 +41,7 @@ object AidManager {
     }
 
     fun add(aid: String) {
+        Log.d(TAG, "add: $aid")
         val set = prefs.getStringSet(PREFS_KEY, emptySet())!!.toMutableSet()
         set.add(aid)
         prefs.edit().putStringSet(PREFS_KEY, set).apply()
@@ -43,6 +49,7 @@ object AidManager {
     }
 
     fun remove(aid: String) {
+        Log.d(TAG, "remove: $aid")
         val set = prefs.getStringSet(PREFS_KEY, emptySet())!!.toMutableSet()
         set.remove(aid)
         prefs.edit().putStringSet(PREFS_KEY, set).apply()
@@ -50,6 +57,7 @@ object AidManager {
     }
 
     fun clear() {
+        Log.d(TAG, "clear")
         prefs.edit().putStringSet(PREFS_KEY, emptySet()).apply()
         registerAids(emptyList())
     }

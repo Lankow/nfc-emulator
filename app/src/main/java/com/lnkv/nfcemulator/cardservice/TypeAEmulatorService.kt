@@ -14,6 +14,7 @@ class TypeAEmulatorService : HostApduService() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate")
         CommunicationLog.add("STATE-NFC: Activated.", true, true)
     }
 
@@ -25,10 +26,11 @@ class TypeAEmulatorService : HostApduService() {
         val response = ScenarioManager.processApdu(commandApdu)
         if (commandApdu != null) {
             val apduHex = commandApdu.toHex()
-            Log.d(TAG, "APDU: $apduHex")
+            val respHex = response?.toHex()
+            Log.d(TAG, "APDU: $apduHex -> $respHex")
             CommunicationLog.add("REQ: $apduHex", false)
             CommunicationLog.add(
-                "RESP: ${response?.toHex() ?: "null"}",
+                "RESP: ${respHex ?: "null"}",
                 false
             )
         }

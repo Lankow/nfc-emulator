@@ -1,6 +1,7 @@
 package com.lnkv.nfcemulator
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import androidx.compose.runtime.mutableStateListOf
@@ -15,6 +16,7 @@ object ScenarioManager {
     private const val PREFS = "scenario_prefs"
     private const val CURRENT_KEY = "currentScenario"
     private const val SCENARIO_KEY = "scenarios"
+    private const val TAG = "ScenarioManager"
 
     private val _current = MutableStateFlow<String?>(null)
     val current = _current.asStateFlow()
@@ -36,9 +38,11 @@ object ScenarioManager {
         val name = prefs.getString(CURRENT_KEY, null)
         _current.value = name
         _steps.value = if (name != null) loadScenario(context, name)?.steps ?: emptyList() else emptyList()
+        Log.d(TAG, "load: current=$name steps=${_steps.value.size}")
     }
 
     fun setCurrent(context: Context, name: String?) {
+        Log.d(TAG, "setCurrent: $name")
         _current.value = name
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit().putString(CURRENT_KEY, name).apply()
@@ -47,6 +51,7 @@ object ScenarioManager {
     }
 
     fun setRunning(running: Boolean) {
+        Log.d(TAG, "setRunning: $running")
         _running.value = running
         val name = _current.value
         if (running && name != null) {
@@ -61,6 +66,7 @@ object ScenarioManager {
 
     fun toggleSilence() {
         _silenced.value = !_silenced.value
+        Log.d(TAG, "toggleSilence: ${_silenced.value}")
         val name = _current.value?.let { "Scenario '$it'" } ?: "Scenario"
         if (_silenced.value) {
             CommunicationLog.add("STATE-SCEN: $name silenced.", true, false)
@@ -70,6 +76,7 @@ object ScenarioManager {
     }
 
     fun addScenario(context: Context, scenario: Scenario) {
+        Log.d(TAG, "addScenario: ${scenario.name}")
         val scenarios = loadAllScenarios(context)
         scenarios.removeAll { it.name == scenario.name }
         scenarios.add(scenario)
@@ -77,6 +84,7 @@ object ScenarioManager {
     }
 
     fun removeScenario(context: Context, name: String) {
+        Log.d(TAG, "removeScenario: $name")
         val scenarios = loadAllScenarios(context)
         scenarios.removeAll { it.name == name }
         saveAllScenarios(context, scenarios)
@@ -86,19 +94,33 @@ object ScenarioManager {
     }
 
     fun clearScenarios(context: Context) {
+        Log.d(TAG, "clearScenarios")
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit().remove(SCENARIO_KEY).apply()
         setCurrent(context, null)
     }
 
     fun onDeactivated() {
+        Log.d(TAG, "onDeactivated")
         isSelected = false
     }
 
     fun processApdu(commandApdu: ByteArray?): ByteArray? {
-        if (commandApdu == null) return null
-        if (_silenced.value) return null
-        if (!_running.value || _current.value == null) return null
+        if (commandApdu == null) {
+            Log.d(TAG, "processApdu: null command")
+            return null
+        }
+        if (_silenced.value) {
+            Log.d(TAG, "processApdu: silenced")
+            return null
+        }
+        if (!_running.value || _current.value == null) {
+            Log.d(TAG, "processApdu: not running")
+            return null
+        }
+
+        val apduHex = commandApdu.toHex()
+        Log.d(TAG, "processApdu: cmd=$apduHex index=$stepIndex selected=$isSelected")
 
         // Ignore further selects for single-select AIDs
         if (isSelectCommand(commandApdu)) {
@@ -112,27 +134,34 @@ object ScenarioManager {
             when (step.type) {
                 StepType.Select -> {
                     if (isSelectCommand(commandApdu) && extractAid(commandApdu).equals(step.aid, true)) {
+                        Log.d(TAG, "processApdu: Select matched ${step.aid}")
                         isSelected = true
                         if (step.singleSelect) singleConsumed.add(step.aid.uppercase())
                         stepIndex++
                         return byteArrayOf(0x90.toByte(), 0x00.toByte())
                     }
+                    Log.d(TAG, "processApdu: Select not matched ${step.aid}")
                     return null
                 }
                 StepType.RequestResponse -> {
                     val reqHex = commandApdu.toHex()
                     if (step.needsSelection == isSelected && reqHex.equals(step.request, true)) {
+                        Log.d(TAG, "processApdu: RequestResponse '${step.name}' matched")
                         stepIndex++
                         return hexToBytes(step.response)
                     }
+                    Log.d(TAG, "processApdu: RequestResponse '${step.name}' not matched")
                 }
             }
         }
 
-        return if (isSelected) SettingsManager.selectedResponse.value.data else SettingsManager.unselectedResponse.value.data
+        val fallback = if (isSelected) SettingsManager.selectedResponse.value.data else SettingsManager.unselectedResponse.value.data
+        Log.d(TAG, "processApdu: fallback=${fallback?.toHex()}")
+        return fallback
     }
 
     private fun resetState() {
+        Log.d(TAG, "resetState")
         stepIndex = 0
         isSelected = false
         singleConsumed.clear()
@@ -159,13 +188,15 @@ object ScenarioManager {
                 )
             }
         } else emptyList()
-        return Scenario(name, steps.toMutableList().toMutableStateList())
+        val scenario = Scenario(name, steps.toMutableList().toMutableStateList())
+        Log.d(TAG, "loadScenario: $name steps=${scenario.steps.size}")
+        return scenario
     }
 
     private fun loadAllScenarios(context: Context): MutableList<Scenario> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: emptySet()
-        return serialized.map { line ->
+        val list = serialized.map { line ->
             val parts = line.split("|", limit = 2)
             val name = parts[0]
             val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
@@ -185,9 +216,12 @@ object ScenarioManager {
             } else mutableStateListOf()
             Scenario(name, steps)
         }.toMutableList()
+        Log.d(TAG, "loadAllScenarios: ${list.size}")
+        return list
     }
 
     private fun saveAllScenarios(context: Context, scenarios: List<Scenario>) {
+        Log.d(TAG, "saveAllScenarios: ${scenarios.map { it.name }}")
         val serialized = scenarios.map { scenario ->
             val stepString = scenario.steps.joinToString(",") { step ->
                 listOf(

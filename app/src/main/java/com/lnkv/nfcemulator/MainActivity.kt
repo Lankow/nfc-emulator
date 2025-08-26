@@ -109,6 +109,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import com.lnkv.nfcemulator.cardservice.TypeAEmulatorService
 import com.lnkv.nfcemulator.ui.theme.NFCEmulatorTheme
+import android.util.Log
 
 /**
  * Main activity hosting a bottom navigation menu that switches between
@@ -118,10 +119,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var cardEmulation: CardEmulation
     private lateinit var componentName: ComponentName
     private lateinit var prefs: SharedPreferences
+    private val TAG = "MainActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        Log.d(TAG, "onCreate")
 
         val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         cardEmulation = CardEmulation.getInstance(nfcAdapter)
@@ -132,6 +135,7 @@ class MainActivity : ComponentActivity() {
         AidManager.init(cardEmulation, componentName, prefs)
 
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
+        Log.d(TAG, "storedAids: $storedAids")
         AidManager.registerAids(storedAids)
 
         val serverPrefs = getSharedPreferences("server_prefs", MODE_PRIVATE)
@@ -144,6 +148,7 @@ class MainActivity : ComponentActivity() {
                 val port = ipPort.substringAfter(":").toIntOrNull()
                 val poll = serverPrefs.getString("pollingTime", "0")!!.toLongOrNull() ?: 0
                 if (port != null) {
+                    Log.d(TAG, "autoConnect to $host:$port poll=$poll")
                     ServerConnectionManager.connect(this, host, port, poll)
                 }
             }
@@ -154,13 +159,16 @@ class MainActivity : ComponentActivity() {
             val portStr = serverPrefs.getString("port", "0000")!!
             val portNum = if (staticPort && portStr.isNotBlank()) portStr.toIntOrNull() ?: 0 else 0
             if (ServerConnectionManager.state == "Connected") {
+                Log.d(TAG, "disconnect before autoStart")
                 ServerConnectionManager.disconnect()
             }
+            Log.d(TAG, "autoStart server port=$portNum")
             InternalServerManager.start(portNum)
         }
 
         ScenarioManager.load(this)
         SettingsManager.load(this)
+        Log.d(TAG, "initialization complete")
 
         setContent {
             NFCEmulatorTheme {

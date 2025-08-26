@@ -111,3 +111,10 @@ completed before the request is matched.
 - `MainActivity` – Compose UI and AID configuration.
 - `TypeAEmulatorService` – Handles APDU commands from the NFC reader.
 - `CommunicationLog` – Stores APDU exchanges for display.
+
+## Debugging
+
+Verbose debug logs are written to Logcat using tags like `AidManager`, `ScenarioManager`,
+`ServerConnMgr`, `InternalServer`, `ServerJsonHandler`, `TypeAEmulatorService`,
+`CommunicationLog`, and `MainActivity`. Use `adb logcat` to observe AID
+registration, scenario execution, server traffic, and NFC APDU flow in real time.

@@ -141,7 +141,6 @@ object ScenarioManager {
                         return byteArrayOf(0x90.toByte(), 0x00.toByte())
                     }
                     Log.d(TAG, "processApdu: Select not matched ${step.aid}")
-                    return null
                 }
                 StepType.RequestResponse -> {
                     val reqHex = commandApdu.toHex()
@@ -155,8 +154,12 @@ object ScenarioManager {
             }
         }
 
-        val fallback = if (isSelected) SettingsManager.selectedResponse.value.data else SettingsManager.unselectedResponse.value.data
-        Log.d(TAG, "processApdu: fallback=${fallback?.toHex()}")
+        val fallback = if (isSelected) {
+            SettingsManager.selectedResponse.value.data
+        } else {
+            SettingsManager.unselectedResponse.value.data
+        }
+        Log.d(TAG, "processApdu: fallback=${fallback.toHex()}")
         return fallback
     }
 

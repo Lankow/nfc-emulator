@@ -18,6 +18,7 @@ class ScenarioScreenTest {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
         composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioAid").performTextInput("A0000002471001")
         composeTestRule.onNodeWithTag("ScenarioSave").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
         composeTestRule.onNodeWithTag("ScenarioEdit0").performClick()
@@ -40,11 +41,10 @@ class ScenarioScreenTest {
     }
 
     @Test
-    fun defaultResponseSpinnersVisible() {
+    fun aidFieldVisible() {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
-        composeTestRule.onNodeWithTag("SelectedRespSpinner").assertExists()
-        composeTestRule.onNodeWithTag("UnselectedRespSpinner").assertExists()
+        composeTestRule.onNodeWithTag("ScenarioAid").assertExists()
     }
 
     @Test
@@ -58,6 +58,7 @@ class ScenarioScreenTest {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
         composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioAid").performTextInput("A0000002471001")
         composeTestRule.onNodeWithTag("ScenarioSave").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
         composeTestRule.onNodeWithTag("ScenarioPlay0").performClick()

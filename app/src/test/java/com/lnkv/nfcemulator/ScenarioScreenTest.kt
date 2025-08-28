@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertTextEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -18,6 +19,7 @@ class ScenarioScreenTest {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
         composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioAid").performTextInput("A0000002471001")
         composeTestRule.onNodeWithTag("ScenarioSave").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
         composeTestRule.onNodeWithTag("ScenarioEdit0").performClick()
@@ -40,11 +42,10 @@ class ScenarioScreenTest {
     }
 
     @Test
-    fun defaultResponseSpinnersVisible() {
+    fun aidFieldVisible() {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
-        composeTestRule.onNodeWithTag("SelectedRespSpinner").assertExists()
-        composeTestRule.onNodeWithTag("UnselectedRespSpinner").assertExists()
+        composeTestRule.onNodeWithTag("ScenarioAid").assertExists()
     }
 
     @Test
@@ -58,9 +59,21 @@ class ScenarioScreenTest {
         composeTestRule.setContent { ScenarioScreen() }
         composeTestRule.onNodeWithTag("ScenarioNew").performClick()
         composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioAid").performTextInput("A0000002471001")
         composeTestRule.onNodeWithTag("ScenarioSave").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
         composeTestRule.onNodeWithTag("ScenarioPlay0").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").assertExists()
+    }
+
+    @Test
+    fun allowsSpacesInNames() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("My Scenario")
+        composeTestRule.onNodeWithTag("ScenarioTitle").assertTextEquals("My Scenario")
+        composeTestRule.onNodeWithTag("StepNew").performClick()
+        composeTestRule.onNodeWithTag("StepName").performTextInput("Step One")
+        composeTestRule.onNodeWithTag("StepName").assertTextEquals("Step One")
     }
 }

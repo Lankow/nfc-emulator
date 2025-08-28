@@ -168,6 +168,8 @@ object ServerJsonHandler {
             Log.d(TAG, "parseScenario: missing name")
             return null
         }
+        val aid = obj.optString("aid")
+        val selectOnce = obj.optBoolean("selectOnce", false)
         val steps = mutableListOf<Step>()
         val arr = obj.optJSONArray("steps")
         if (arr != null) {
@@ -175,17 +177,13 @@ object ServerJsonHandler {
                 val stepObj = arr.optJSONObject(i) ?: continue
                 val step = Step(
                     stepObj.optString("name"),
-                    StepType.valueOf(stepObj.optString("type", StepType.Select.name)),
-                    stepObj.optString("aid"),
-                    stepObj.optBoolean("singleSelect", false),
                     stepObj.optString("request"),
-                    stepObj.optString("response"),
-                    stepObj.optBoolean("needsSelection", false)
+                    stepObj.optString("response")
                 )
                 steps.add(step)
             }
         }
-        Log.d(TAG, "parseScenario: $name steps=${steps.size}")
-        return Scenario(name, steps.toMutableList().toMutableStateList())
+        Log.d(TAG, "parseScenario: $name steps=${steps.size} aid=$aid selectOnce=$selectOnce")
+        return Scenario(name, aid, selectOnce, steps.toMutableList().toMutableStateList())
     }
 }

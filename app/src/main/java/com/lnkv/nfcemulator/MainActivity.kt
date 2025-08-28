@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.runtime.getValue
@@ -91,6 +92,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -99,6 +101,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.AnnotatedString
 import android.content.res.ColorStateList
 import java.io.File
 import android.net.Uri
@@ -167,7 +170,6 @@ class MainActivity : ComponentActivity() {
         }
 
         ScenarioManager.load(this)
-        SettingsManager.load(this)
         Log.d(TAG, "initialization complete")
 
         setContent {
@@ -293,22 +295,17 @@ fun StepEditor(
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(step.name) }
-    var type by remember { mutableStateOf(step.type) }
-    var aid by remember { mutableStateOf(step.aid) }
-    var singleSelect by remember { mutableStateOf(step.singleSelect) }
     var request by remember { mutableStateOf(step.request) }
     var response by remember { mutableStateOf(step.response) }
-    var needsSelection by remember { mutableStateOf(step.needsSelection) }
     val hexRegex = remember { Regex("^[0-9A-Fa-f]*$") }
-    val aidValid = type != StepType.Select || (aid.matches(hexRegex) && aid.length % 2 == 0)
-    val reqValid = type != StepType.RequestResponse || (request.matches(hexRegex) && request.length % 2 == 0)
-    val respValid = type != StepType.RequestResponse || (response.matches(hexRegex) && response.length % 2 == 0)
+    val reqValid = request.matches(hexRegex) && request.length % 2 == 0
+    val respValid = response.matches(hexRegex) && response.length % 2 == 0
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
             value = name,
             onValueChange = { input ->
-                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) name = input
+                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.', ' ') }) name = input
             },
             label = { Text("Step Name") },
             trailingIcon = {
@@ -319,58 +316,27 @@ fun StepEditor(
             modifier = Modifier.fillMaxWidth().testTag("StepName")
         )
         Spacer(modifier = Modifier.height(8.dp))
-        EnumSpinner(
-            label = "Type",
-            options = StepType.entries.toList(),
-            selected = type,
-            labelMapper = { it.label },
-            onSelected = { type = it },
-            modifier = Modifier.fillMaxWidth().testTag("TypeSpinner")
+        OutlinedTextField(
+            value = request,
+            onValueChange = { input ->
+                val filtered = input.uppercase()
+                if (filtered.matches(hexRegex)) request = filtered
+            },
+            label = { Text("Request") },
+            isError = request.isNotEmpty() && request.length % 2 != 0,
+            modifier = Modifier.fillMaxWidth()
         )
-        if (type == StepType.Select) {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = aid,
-                onValueChange = { input ->
-                    val filtered = input.uppercase()
-                    if (filtered.matches(hexRegex)) aid = filtered
-                },
-                label = { Text("AID") },
-                isError = aid.isNotEmpty() && aid.length % 2 != 0,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = singleSelect, onCheckedChange = { singleSelect = it })
-                Text("Single Select")
-            }
-        } else if (type == StepType.RequestResponse) {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = request,
-                onValueChange = { input ->
-                    val filtered = input.uppercase()
-                    if (filtered.matches(hexRegex)) request = filtered
-                },
-                label = { Text("Request") },
-                isError = request.isNotEmpty() && request.length % 2 != 0,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = response,
-                onValueChange = { input ->
-                    val filtered = input.uppercase()
-                    if (filtered.matches(hexRegex)) response = filtered
-                },
-                label = { Text("Response") },
-                isError = response.isNotEmpty() && response.length % 2 != 0,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = needsSelection, onCheckedChange = { needsSelection = it })
-                Text("Needs to be selected")
-            }
-        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = response,
+            onValueChange = { input ->
+                val filtered = input.uppercase()
+                if (filtered.matches(hexRegex)) response = filtered
+            },
+            label = { Text("Response") },
+            isError = response.isNotEmpty() && response.length % 2 != 0,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -379,15 +345,11 @@ fun StepEditor(
             Button(
                 onClick = {
                     step.name = name
-                    step.type = type
-                    step.aid = if (type == StepType.Select) aid else ""
-                    step.singleSelect = if (type == StepType.Select) singleSelect else false
-                    step.request = if (type == StepType.RequestResponse) request else ""
-                    step.response = if (type == StepType.RequestResponse) response else ""
-                    step.needsSelection = if (type == StepType.RequestResponse) needsSelection else false
+                    step.request = request
+                    step.response = response
                     onSave(step)
                 },
-                enabled = aidValid && reqValid && respValid,
+                enabled = reqValid && respValid,
                 modifier = Modifier.weight(1f).testTag("StepSave")
             ) { Text("Save") }
             Button(
@@ -408,22 +370,18 @@ enum class Screen(val label: String) {
     Aid("AID")
 }
 
-enum class StepType(val label: String) {
-    Select("Select"),
-    RequestResponse("Request/Response")
-}
-
 data class Step(
     var name: String,
-    var type: StepType = StepType.Select,
-    var aid: String = "",
-    var singleSelect: Boolean = false,
     var request: String = "",
-    var response: String = "",
-    var needsSelection: Boolean = false
+    var response: String = ""
 )
 
-data class Scenario(var name: String, val steps: SnapshotStateList<Step> = mutableStateListOf())
+data class Scenario(
+    var name: String,
+    var aid: String,
+    var selectOnce: Boolean = false,
+    val steps: SnapshotStateList<Step> = mutableStateListOf()
+)
 
 private const val SCENARIO_PREFS = "scenario_prefs"
 private const val SCENARIO_KEY = "scenarios"
@@ -433,15 +391,11 @@ private fun saveScenarios(context: Context, scenarios: List<Scenario>) {
         val stepString = scenario.steps.joinToString(",") { step ->
             listOf(
                 step.name,
-                step.type.name,
-                step.aid,
-                step.singleSelect.toString(),
                 step.request,
-                step.response,
-                step.needsSelection.toString()
+                step.response
             ).joinToString(";")
         }
-        scenario.name + "|" + stepString
+        listOf(scenario.name, scenario.aid, scenario.selectOnce.toString()).joinToString(";") + "|" + stepString
     }.toSet()
     val prefs = context.getSharedPreferences(SCENARIO_PREFS, Context.MODE_PRIVATE)
     prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()
@@ -452,29 +406,21 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
     val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet())!!
     return serialized.map { line ->
         val parts = line.split("|", limit = 2)
-        val name = parts[0]
+        val header = parts[0].split(";", limit = 3)
+        val name = header.getOrElse(0) { "" }
+        val aid = header.getOrElse(1) { "" }
+        val selectOnce = header.getOrElse(2) { "false" }.toBoolean()
         val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
             parts[1].split(",").map { stepStr ->
                 val sp = stepStr.split(";")
-                val stepName = sp.getOrElse(0) { "" }
-                val type = sp.getOrElse(1) { StepType.Select.name }
-                val aid = sp.getOrElse(2) { "" }
-                val single = sp.getOrElse(3) { "false" }
-                val request = sp.getOrElse(4) { "" }
-                val response = sp.getOrElse(5) { "" }
-                val needs = sp.getOrElse(6) { "false" }
                 Step(
-                    stepName,
-                    StepType.valueOf(type),
-                    aid,
-                    single.toBoolean(),
-                    request,
-                    response,
-                    needs.toBoolean()
+                    sp.getOrElse(0) { "" },
+                    sp.getOrElse(1) { "" },
+                    sp.getOrElse(2) { "" }
                 )
             }.toMutableStateList()
         } else mutableStateListOf()
-        Scenario(name, steps)
+        Scenario(name = name, aid = aid, selectOnce = selectOnce, steps = steps)
     }.toMutableStateList()
 }
 
@@ -485,17 +431,15 @@ private fun exportScenarios(context: Context, scenarios: List<Scenario>, uri: Ur
             put(
                 JSONObject().apply {
                     put("name", scenario.name)
+                    put("aid", scenario.aid)
+                    put("selectOnce", scenario.selectOnce)
                     put("steps", JSONArray().apply {
                         scenario.steps.forEach { step ->
                             put(
                                 JSONObject().apply {
                                     put("name", step.name)
-                                    put("type", step.type.name)
-                                    put("aid", step.aid)
-                                    put("single", step.singleSelect)
                                     put("request", step.request)
                                     put("response", step.response)
-                                    put("needsSelection", step.needsSelection)
                                 }
                             )
                         }
@@ -522,16 +466,13 @@ private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
             steps.add(
                 Step(
                     stepObj.getString("name"),
-                    StepType.valueOf(stepObj.getString("type")),
-                    stepObj.getString("aid"),
-                    stepObj.optBoolean("single", false),
-                    stepObj.getString("request"),
-                    stepObj.getString("response"),
-                    stepObj.optBoolean("needsSelection", false)
+                    stepObj.optString("request"),
+                    stepObj.optString("response")
                 )
             )
         }
-        scenarios.add(Scenario(obj.getString("name"), steps))
+        val selectOnce = obj.optBoolean("selectOnce", false)
+        scenarios.add(Scenario(obj.getString("name"), obj.optString("aid"), selectOnce, steps))
     }
     return scenarios
 }
@@ -790,9 +731,14 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
     if (editingIndex != null) {
         val isNew = editingIndex == -1
         val workingScenario = remember(editingIndex) {
-            if (isNew) Scenario("") else {
+            if (isNew) Scenario("", "") else {
                 val original = scenarios[editingIndex!!]
-                Scenario(original.name, original.steps.toMutableStateList())
+                Scenario(
+                    name = original.name,
+                    aid = original.aid,
+                    selectOnce = original.selectOnce,
+                    steps = original.steps.toMutableStateList()
+                )
             }
         }
         ScenarioEditor(
@@ -1064,8 +1010,8 @@ fun ScenarioEditor(
     var editingStepIndex by remember { mutableStateOf<Int?>(null) }
     var showTitleAlert by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val selectedResp by SettingsManager.selectedResponse.collectAsState()
-    val unselectedResp by SettingsManager.unselectedResponse.collectAsState()
+    var aid by remember { mutableStateOf(scenario.aid) }
+    var selectOnce by remember { mutableStateOf(scenario.selectOnce) }
 
     if (editingStepIndex != null) {
         val isNewStep = editingStepIndex == -1
@@ -1087,7 +1033,7 @@ fun ScenarioEditor(
             OutlinedTextField(
                 value = title,
                 onValueChange = { input ->
-                    if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) title = input
+                    if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.', ' ') }) title = input
                 },
                 label = { Text("Scenario Title") },
                 trailingIcon = {
@@ -1098,23 +1044,27 @@ fun ScenarioEditor(
                 modifier = Modifier.fillMaxWidth().testTag("ScenarioTitle")
             )
             Spacer(modifier = Modifier.height(8.dp))
-            EnumSpinner(
-                label = "When selected, respond",
-                options = DefaultResponse.entries.toList(),
-                selected = selectedResp,
-                labelMapper = { it.label },
-                onSelected = { SettingsManager.setSelectedResponse(context, it) },
-                modifier = Modifier.fillMaxWidth().testTag("SelectedRespSpinner")
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = aid,
+                onValueChange = { input ->
+                    val filtered = input.uppercase()
+                    if (filtered.length <= 32 && filtered.all { it in '0'..'9' || it in 'A'..'F' }) aid = filtered
+                },
+                label = { Text("AID") },
+                singleLine = true,
+                isError = aid.isNotEmpty() && !isValidAid(aid),
+                modifier = Modifier.fillMaxWidth().testTag("ScenarioAid")
             )
             Spacer(modifier = Modifier.height(8.dp))
-            EnumSpinner(
-                label = "When not selected, respond",
-                options = DefaultResponse.entries.toList(),
-                selected = unselectedResp,
-                labelMapper = { it.label },
-                onSelected = { SettingsManager.setUnselectedResponse(context, it) },
-                modifier = Modifier.fillMaxWidth().testTag("UnselectedRespSpinner")
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = selectOnce,
+                    onCheckedChange = { selectOnce = it },
+                    modifier = Modifier.testTag("ScenarioSelectOnce")
+                )
+                Text("Select once")
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
@@ -1173,9 +1123,12 @@ fun ScenarioEditor(
                             showTitleAlert = true
                         } else {
                             scenario.name = title
+                            scenario.aid = aid
+                            scenario.selectOnce = selectOnce
                             onSave(scenario)
                         }
                     },
+                    enabled = isValidAid(aid),
                     modifier = Modifier.weight(1f).testTag("ScenarioSave")
                 ) { Text("Save") }
                 Button(
@@ -1349,6 +1302,10 @@ fun AidScreen(modifier: Modifier = Modifier) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(aid, modifier = Modifier.weight(1f), fontSize = 12.sp)
+                        val clipboard = LocalClipboardManager.current
+                        IconButton(onClick = { clipboard.setText(AnnotatedString(aid)) }) {
+                            Icon(Icons.Filled.ContentCopy, contentDescription = "Copy AID")
+                        }
                         IconButton(onClick = {
                             aids.removeAt(index)
                             saveAids(context, aids)
@@ -1736,10 +1693,12 @@ private fun CommunicationLogList(
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(entries) { entry ->
-                    val color = when (entry.isSuccess) {
-                        true -> Color.Green
-                        false -> Color.Red
-                        null -> Color.Unspecified
+                    val color = when {
+                        entry.message.startsWith("REQ:") -> Color.Yellow
+                        entry.message.startsWith("RESP:") -> Color.Cyan
+                        entry.isSuccess == true -> Color.Green
+                        entry.isSuccess == false -> Color.Red
+                        else -> Color.Unspecified
                     }
                     val time = remember(entry.timestamp) {
                         java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())

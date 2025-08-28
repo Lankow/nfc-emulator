@@ -30,6 +30,8 @@ object ScenarioManager {
 
     private val _steps = MutableStateFlow<List<Step>>(emptyList())
     private var scenarioAid: String = ""
+    private var aidToSelect: String = ""
+    private var selectOnce: Boolean = false
 
     private var stepIndex = 0
     private var isSelected = false
@@ -41,7 +43,9 @@ object ScenarioManager {
         val scenario = if (name != null) loadScenario(context, name) else null
         _steps.value = scenario?.steps ?: emptyList()
         scenarioAid = scenario?.aid ?: ""
-        Log.d(TAG, "load: current=$name steps=${_steps.value.size} aid=$scenarioAid")
+        aidToSelect = scenarioAid
+        selectOnce = scenario?.selectOnce ?: false
+        Log.d(TAG, "load: current=$name steps=${_steps.value.size} aid=$scenarioAid selectOnce=$selectOnce")
     }
 
     fun setCurrent(context: Context, name: String?) {
@@ -52,6 +56,7 @@ object ScenarioManager {
         val scenario = if (name != null) loadScenario(context, name) else null
         _steps.value = scenario?.steps ?: emptyList()
         scenarioAid = scenario?.aid ?: ""
+        selectOnce = scenario?.selectOnce ?: false
         resetState()
     }
 
@@ -110,11 +115,12 @@ object ScenarioManager {
         if (commandApdu == null || _silenced.value || !_running.value || _current.value == null) return null
 
         val apduHex = commandApdu.toHex()
-        Log.d(TAG, "processApdu: cmd=$apduHex index=$stepIndex selected=$isSelected aid=$scenarioAid")
+        Log.d(TAG, "processApdu: cmd=$apduHex index=$stepIndex selected=$isSelected aid=$aidToSelect")
 
         if (!isSelected) {
-            if (isSelectCommand(commandApdu) && extractAid(commandApdu).equals(scenarioAid, true)) {
+            if (isSelectCommand(commandApdu) && extractAid(commandApdu).equals(aidToSelect, true)) {
                 isSelected = true
+                if (selectOnce) aidToSelect = ""
                 return SUCCESS
             }
             return FILE_NOT_FOUND
@@ -131,6 +137,7 @@ object ScenarioManager {
     private fun resetState() {
         stepIndex = 0
         isSelected = false
+        aidToSelect = scenarioAid
     }
 
     private fun loadScenario(context: Context, name: String): Scenario? {
@@ -138,8 +145,9 @@ object ScenarioManager {
         val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: return null
         val line = serialized.find { it.startsWith("$name;") || it.startsWith("$name|") || it == name } ?: return null
         val parts = line.split("|", limit = 2)
-        val header = parts[0].split(";", limit = 2)
+        val header = parts[0].split(";", limit = 3)
         val aid = header.getOrElse(1) { "" }
+        val selectOnce = header.getOrElse(2) { "false" }.toBoolean()
         val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
             parts[1].split(",").mapNotNull { stepStr ->
                 val sp = stepStr.split(";")
@@ -147,7 +155,7 @@ object ScenarioManager {
                 Step(sp[0], sp[1], sp[2])
             }.toMutableList().toMutableStateList()
         } else mutableStateListOf()
-        return Scenario(name, aid, steps)
+        return Scenario(name, aid, selectOnce, steps)
     }
 
     private fun loadAllScenarios(context: Context): MutableList<Scenario> {
@@ -155,9 +163,10 @@ object ScenarioManager {
         val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: emptySet()
         return serialized.mapNotNull { line ->
             val parts = line.split("|", limit = 2)
-            val header = parts[0].split(";", limit = 2)
+            val header = parts[0].split(";", limit = 3)
             val name = header.getOrElse(0) { return@mapNotNull null }
             val aid = header.getOrElse(1) { "" }
+            val selectOnce = header.getOrElse(2) { "false" }.toBoolean()
             val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
                 parts[1].split(",").mapNotNull { stepStr ->
                     val sp = stepStr.split(";")
@@ -165,7 +174,7 @@ object ScenarioManager {
                     Step(sp[0], sp[1], sp[2])
                 }.toMutableList().toMutableStateList()
             } else mutableStateListOf()
-            Scenario(name, aid, steps)
+            Scenario(name, aid, selectOnce, steps)
         }.toMutableList()
     }
 
@@ -174,7 +183,7 @@ object ScenarioManager {
             val stepString = scenario.steps.joinToString(",") { step ->
                 listOf(step.name, step.request, step.response).joinToString(";")
             }
-            listOf(scenario.name, scenario.aid).joinToString(";") + "|" + stepString
+            listOf(scenario.name, scenario.aid, scenario.selectOnce.toString()).joinToString(";") + "|" + stepString
         }.toSet()
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()

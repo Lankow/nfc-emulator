@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertTextEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -63,5 +64,16 @@ class ScenarioScreenTest {
         composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
         composeTestRule.onNodeWithTag("ScenarioPlay0").performClick()
         composeTestRule.onNodeWithTag("ScenarioItem0").assertExists()
+    }
+
+    @Test
+    fun allowsSpacesInNames() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("My Scenario")
+        composeTestRule.onNodeWithTag("ScenarioTitle").assertTextEquals("My Scenario")
+        composeTestRule.onNodeWithTag("StepNew").performClick()
+        composeTestRule.onNodeWithTag("StepName").performTextInput("Step One")
+        composeTestRule.onNodeWithTag("StepName").assertTextEquals("Step One")
     }
 }

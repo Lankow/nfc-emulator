@@ -169,6 +169,7 @@ object ServerJsonHandler {
             return null
         }
         val aid = obj.optString("aid")
+        val selectOnce = obj.optBoolean("selectOnce", false)
         val steps = mutableListOf<Step>()
         val arr = obj.optJSONArray("steps")
         if (arr != null) {
@@ -182,7 +183,7 @@ object ServerJsonHandler {
                 steps.add(step)
             }
         }
-        Log.d(TAG, "parseScenario: $name steps=${steps.size} aid=$aid")
-        return Scenario(name, aid, steps.toMutableList().toMutableStateList())
+        Log.d(TAG, "parseScenario: $name steps=${steps.size} aid=$aid selectOnce=$selectOnce")
+        return Scenario(name, aid, selectOnce, steps.toMutableList().toMutableStateList())
     }
 }

@@ -305,7 +305,7 @@ fun StepEditor(
         OutlinedTextField(
             value = name,
             onValueChange = { input ->
-                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) name = input
+                if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.', ' ') }) name = input
             },
             label = { Text("Step Name") },
             trailingIcon = {
@@ -379,6 +379,7 @@ data class Step(
 data class Scenario(
     var name: String,
     var aid: String,
+    var selectOnce: Boolean = false,
     val steps: SnapshotStateList<Step> = mutableStateListOf()
 )
 
@@ -394,7 +395,7 @@ private fun saveScenarios(context: Context, scenarios: List<Scenario>) {
                 step.response
             ).joinToString(";")
         }
-        listOf(scenario.name, scenario.aid).joinToString(";") + "|" + stepString
+        listOf(scenario.name, scenario.aid, scenario.selectOnce.toString()).joinToString(";") + "|" + stepString
     }.toSet()
     val prefs = context.getSharedPreferences(SCENARIO_PREFS, Context.MODE_PRIVATE)
     prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()
@@ -405,9 +406,10 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
     val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet())!!
     return serialized.map { line ->
         val parts = line.split("|", limit = 2)
-        val header = parts[0].split(";", limit = 2)
+        val header = parts[0].split(";", limit = 3)
         val name = header.getOrElse(0) { "" }
         val aid = header.getOrElse(1) { "" }
+        val selectOnce = header.getOrElse(2) { "false" }.toBoolean()
         val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
             parts[1].split(",").map { stepStr ->
                 val sp = stepStr.split(";")
@@ -418,7 +420,7 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
                 )
             }.toMutableStateList()
         } else mutableStateListOf()
-        Scenario(name, aid, steps)
+        Scenario(name = name, aid = aid, selectOnce = selectOnce, steps = steps)
     }.toMutableStateList()
 }
 
@@ -430,6 +432,7 @@ private fun exportScenarios(context: Context, scenarios: List<Scenario>, uri: Ur
                 JSONObject().apply {
                     put("name", scenario.name)
                     put("aid", scenario.aid)
+                    put("selectOnce", scenario.selectOnce)
                     put("steps", JSONArray().apply {
                         scenario.steps.forEach { step ->
                             put(
@@ -468,7 +471,8 @@ private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
                 )
             )
         }
-        scenarios.add(Scenario(obj.getString("name"), obj.optString("aid"), steps))
+        val selectOnce = obj.optBoolean("selectOnce", false)
+        scenarios.add(Scenario(obj.getString("name"), obj.optString("aid"), selectOnce, steps))
     }
     return scenarios
 }
@@ -729,7 +733,12 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
         val workingScenario = remember(editingIndex) {
             if (isNew) Scenario("", "") else {
                 val original = scenarios[editingIndex!!]
-                Scenario(original.name, original.aid, original.steps.toMutableStateList())
+                Scenario(
+                    name = original.name,
+                    aid = original.aid,
+                    selectOnce = original.selectOnce,
+                    steps = original.steps.toMutableStateList()
+                )
             }
         }
         ScenarioEditor(
@@ -1002,6 +1011,7 @@ fun ScenarioEditor(
     var showTitleAlert by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var aid by remember { mutableStateOf(scenario.aid) }
+    var selectOnce by remember { mutableStateOf(scenario.selectOnce) }
 
     if (editingStepIndex != null) {
         val isNewStep = editingStepIndex == -1
@@ -1023,7 +1033,7 @@ fun ScenarioEditor(
             OutlinedTextField(
                 value = title,
                 onValueChange = { input ->
-                    if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.') }) title = input
+                    if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.', ' ') }) title = input
                 },
                 label = { Text("Scenario Title") },
                 trailingIcon = {
@@ -1046,6 +1056,15 @@ fun ScenarioEditor(
                 isError = aid.isNotEmpty() && !isValidAid(aid),
                 modifier = Modifier.fillMaxWidth().testTag("ScenarioAid")
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = selectOnce,
+                    onCheckedChange = { selectOnce = it },
+                    modifier = Modifier.testTag("ScenarioSelectOnce")
+                )
+                Text("Select once")
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
@@ -1105,6 +1124,7 @@ fun ScenarioEditor(
                         } else {
                             scenario.name = title
                             scenario.aid = aid
+                            scenario.selectOnce = selectOnce
                             onSave(scenario)
                         }
                     },

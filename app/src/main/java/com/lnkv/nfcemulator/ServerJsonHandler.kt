@@ -19,6 +19,7 @@ object ServerJsonHandler {
                 "Aid" -> handleAid(obj)
                 "Comm" -> handleComm(obj)
                 "Scenarios" -> handleScenarios(obj)
+                "Filters" -> handleFilters(obj)
             }
         } catch (e: Exception) {
             Log.d(TAG, "parse error: ${e.message}")
@@ -63,6 +64,50 @@ object ServerJsonHandler {
                         if (aid.isNotBlank()) {
                             Log.d(TAG, "handleAid: remove $aid")
                             AidManager.remove(aid)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleFilters(obj: JSONObject) {
+        val context = AppContextHolder.context
+        if (obj.optBoolean("Clear", false)) {
+            Log.d(TAG, "handleFilters: clear")
+            CommunicationFilter.clear(context)
+        }
+
+        obj.opt("Add")?.let { addVal ->
+            when (addVal) {
+                is String -> if (addVal.isNotBlank()) {
+                    Log.d(TAG, "handleFilters: add $addVal")
+                    CommunicationFilter.add(addVal, context)
+                }
+                is org.json.JSONArray -> {
+                    for (i in 0 until addVal.length()) {
+                        val f = addVal.optString(i)
+                        if (f.isNotBlank()) {
+                            Log.d(TAG, "handleFilters: add $f")
+                            CommunicationFilter.add(f, context)
+                        }
+                    }
+                }
+            }
+        }
+
+        obj.opt("Remove")?.let { removeVal ->
+            when (removeVal) {
+                is String -> if (removeVal.isNotBlank()) {
+                    Log.d(TAG, "handleFilters: remove $removeVal")
+                    CommunicationFilter.remove(removeVal, context)
+                }
+                is org.json.JSONArray -> {
+                    for (i in 0 until removeVal.length()) {
+                        val f = removeVal.optString(i)
+                        if (f.isNotBlank()) {
+                            Log.d(TAG, "handleFilters: remove $f")
+                            CommunicationFilter.remove(f, context)
                         }
                     }
                 }

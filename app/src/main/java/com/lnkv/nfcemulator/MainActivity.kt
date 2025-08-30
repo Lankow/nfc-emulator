@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -170,6 +171,7 @@ class MainActivity : ComponentActivity() {
         }
 
         ScenarioManager.load(this)
+        CommunicationFilter.load(this)
         Log.d(TAG, "initialization complete")
 
         setContent {
@@ -561,6 +563,13 @@ fun CommunicationScreen(
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
+    var showFilterScreen by remember { mutableStateOf(false) }
+    val filters by CommunicationFilter.filters.collectAsState()
+    val filteredEntries = remember(entries, filters) {
+        entries.filterNot { CommunicationFilter.shouldHide(it.message) }
+    }
+    val serverEntries = filteredEntries.filter { it.isServer }
+    val nfcEntries = filteredEntries.filter { !it.isServer }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         MultiChoiceSegmentedButtonRow(
             modifier = Modifier
@@ -645,9 +654,6 @@ fun CommunicationScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        val serverEntries = entries.filter { it.isServer }
-        val nfcEntries = entries.filter { !it.isServer }
-
         if (showServer) {
             CommunicationLogList(
                 label = "Server Communication",
@@ -668,7 +674,6 @@ fun CommunicationScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
         val context = LocalContext.current
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -676,19 +681,43 @@ fun CommunicationScreen(
         ) {
             Button(
                 onClick = {
-                    val file = File(context.filesDir, "communication-log.txt")
-                    CommunicationLog.saveToFile(file)
+                    val scenarioName = (currentScenario ?: "log").replace(" ", "_")
+                    val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS", java.util.Locale.getDefault()).format(java.util.Date())
+                    val fileName = "${scenarioName}_${timestamp}.log"
+                    val file = File(context.filesDir, fileName)
+                    CommunicationLog.saveToFile(file, filteredEntries)
+                    Toast.makeText(context, "Logs stored to file $fileName", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier.weight(1f).testTag("SaveButton")
             ) {
-                Text("Save Communication")
+                Icon(Icons.Filled.FileDownload, contentDescription = "Save")
+                Spacer(Modifier.width(4.dp))
+                Text("Save")
+            }
+            Button(
+                onClick = { showFilterScreen = !showFilterScreen },
+                modifier = Modifier.weight(1f).testTag("FilterButton"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (showFilterScreen) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary,
+                    contentColor = if (showFilterScreen) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = "Filters")
+                Spacer(Modifier.width(4.dp))
+                Text("Filters")
             }
             Button(
                 onClick = { CommunicationLog.clear() },
                 modifier = Modifier.weight(1f).testTag("ClearButton")
             ) {
-                Text("Clear Communication")
+                Icon(Icons.Filled.Delete, contentDescription = "Clear")
+                Spacer(Modifier.width(4.dp))
+                Text("Clear")
             }
+        }
+
+        if (showFilterScreen) {
+            FilterScreen()
         }
     }
 }
@@ -1077,8 +1106,7 @@ fun ScenarioEditor(
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(steps) { index, step ->
                         val isSelected = selectedStep == index
-                        Text(
-                            step.name,
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
@@ -1087,9 +1115,30 @@ fun ScenarioEditor(
                                     else Color.Transparent
                                 )
                                 .clickable { selectedStep = index }
-                                .padding(12.dp)
-                                .testTag("StepItem$index")
-                        )
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .testTag("StepItem$index"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(step.name, modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = { editingStepIndex = index },
+                                modifier = Modifier.testTag("StepEdit$index")
+                            ) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit Step")
+                            }
+                            IconButton(
+                                onClick = {
+                                    steps.removeAt(index)
+                                    if (selectedStep == index) selectedStep = null
+                                },
+                                modifier = Modifier.testTag("StepDelete$index")
+                            ) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete Step")
+                            }
+                        }
+                        if (index < steps.lastIndex) {
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
@@ -1102,11 +1151,6 @@ fun ScenarioEditor(
                     onClick = { editingStepIndex = -1 },
                     modifier = Modifier.weight(1f).testTag("StepNew")
                 ) { Text("New Step") }
-                Button(
-                    onClick = { editingStepIndex = selectedStep },
-                    enabled = selectedStep != null,
-                    modifier = Modifier.weight(1f).testTag("StepEdit")
-                ) { Text("Edit Step") }
                 Button(
                     onClick = { showClearDialog = true },
                     modifier = Modifier.weight(1f).testTag("StepClear")
@@ -1218,6 +1262,29 @@ private fun importAids(context: Context, uri: Uri): List<String> {
     for (i in 0 until arr.length()) {
         val aid = arr.getString(i).uppercase()
         if (isValidAid(aid)) list.add(aid)
+    }
+    return list
+}
+
+private fun exportFilters(context: Context, filters: List<String>, uri: Uri) {
+    if (filters.isEmpty()) return
+    context.contentResolver.openOutputStream(uri)?.use { os ->
+        val arr = JSONArray()
+        filters.forEach { arr.put(it) }
+        os.write(arr.toString().toByteArray())
+    }
+    val name = uri.path?.substringAfterLast('/') ?: "filters.json"
+    Toast.makeText(context, "Filters saved to file: $name", Toast.LENGTH_SHORT).show()
+}
+
+private fun importFilters(context: Context, uri: Uri): List<String> {
+    val text = context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
+        ?: return emptyList()
+    val arr = JSONArray(text)
+    val list = mutableListOf<String>()
+    for (i in 0 until arr.length()) {
+        val filter = arr.getString(i).uppercase()
+        if (filter.matches(Regex("[0-9A-F*]+"))) list.add(filter)
     }
     return list
 }
@@ -1696,6 +1763,7 @@ private fun CommunicationLogList(
                     val color = when {
                         entry.message.startsWith("REQ:") -> Color.Yellow
                         entry.message.startsWith("RESP:") -> Color.Cyan
+                        entry.message.uppercase().startsWith("AID TO SELECT:") -> Color(0xFFFF9800)
                         entry.isSuccess == true -> Color.Green
                         entry.isSuccess == false -> Color.Red
                         else -> Color.Unspecified
@@ -1705,6 +1773,135 @@ private fun CommunicationLogList(
                             .format(java.util.Date(entry.timestamp))
                     }
                     Text("[$time] ${entry.message}", color = color)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterScreen() {
+    val context = LocalContext.current
+    val filters by CommunicationFilter.filters.collectAsState()
+    var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var editInput by rememberSaveable { mutableStateOf("") }
+    var showMenu by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) exportFilters(context, filters, uri)
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val imported = importFilters(context, uri)
+            CommunicationFilter.setAll(imported, context)
+            Toast.makeText(context, "${imported.size} item(s) have been imported.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    if (editingIndex != null) {
+        AlertDialog(
+            onDismissRequest = { editingIndex = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (editingIndex == -1) {
+                        CommunicationFilter.add(editInput, context)
+                    } else {
+                        CommunicationFilter.replace(filters[editingIndex!!], editInput, context)
+                    }
+                    editInput = ""
+                    editingIndex = null
+                }, enabled = editInput.isNotBlank()) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { editingIndex = null }) { Text("Cancel") } },
+            text = {
+                OutlinedTextField(
+                    value = editInput,
+                    onValueChange = {
+                        if (it.uppercase().matches(Regex("[0-9A-F*]*"))) editInput = it.uppercase()
+                    },
+                    label = { Text("Filter") }
+                )
+            }
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Filters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        editingIndex = -1
+                        editInput = ""
+                    },
+                    modifier = Modifier.size(40.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "New Filter", tint = MaterialTheme.colorScheme.onPrimary)
+                }
+                Box {
+                    Button(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(text = { Text("Export") }, onClick = {
+                            exportLauncher.launch("filters.json")
+                            showMenu = false
+                        })
+                        DropdownMenuItem(text = { Text("Import") }, onClick = {
+                            importLauncher.launch(arrayOf("application/json"))
+                            showMenu = false
+                        })
+                    }
+                }
+            }
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                itemsIndexed(filters) { index, filter ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(filter, modifier = Modifier.weight(1f))
+                        IconButton(onClick = {
+                            editingIndex = index
+                            editInput = filter
+                        }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit Filter")
+                        }
+                        IconButton(onClick = { CommunicationFilter.remove(filter, context) }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete Filter")
+                        }
+                    }
+                    if (index < filters.lastIndex) {
+                        HorizontalDivider()
+                    }
                 }
             }
         }

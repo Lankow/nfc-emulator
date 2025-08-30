@@ -41,11 +41,11 @@ object CommunicationLog {
     }
 
     /**
-     * Writes all log entries to the provided [file], each message separated by a newline.
+     * Writes provided [entries] (or all current entries) to the [file], each message separated by a newline.
      */
-    fun saveToFile(file: File) {
+    fun saveToFile(file: File, entries: List<Entry> = _entries.value) {
         Log.d(TAG, "saveToFile: ${file.path}")
-        val text = _entries.value.joinToString("\n") { it.message }
+        val text = entries.joinToString("\n") { it.message }
         file.writeText(text)
     }
 }

@@ -3,6 +3,7 @@ package com.lnkv.nfcemulator
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertTrue
@@ -12,6 +13,11 @@ class CommunicationScreenTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Before
+    fun setup() {
+        CommunicationFilter.clear()
+    }
 
     @Test
     fun showsServerAndNfcMessages() {
@@ -61,6 +67,7 @@ class CommunicationScreenTest {
     fun actionButtonsDisplayed() {
         composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {}) }
         composeTestRule.onNodeWithTag("SaveButton").assertExists()
+        composeTestRule.onNodeWithTag("FilterButton").assertExists()
         composeTestRule.onNodeWithTag("ClearButton").assertExists()
     }
 
@@ -69,12 +76,14 @@ class CommunicationScreenTest {
         composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {}) }
 
         val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
-        val spacing = with(composeTestRule.density) { 8.dp.roundToPx() }
-        val expected = (logWidth - spacing) / 2
+        val spacing = with(composeTestRule.density) { 16.dp.roundToPx() }
+        val expected = (logWidth - spacing) / 3
         val saveWidth = composeTestRule.onNodeWithTag("SaveButton").fetchSemanticsNode().size.width
+        val filterWidth = composeTestRule.onNodeWithTag("FilterButton").fetchSemanticsNode().size.width
         val clearWidth = composeTestRule.onNodeWithTag("ClearButton").fetchSemanticsNode().size.width
 
         assertEquals(expected, saveWidth)
+        assertEquals(expected, filterWidth)
         assertEquals(expected, clearWidth)
     }
 

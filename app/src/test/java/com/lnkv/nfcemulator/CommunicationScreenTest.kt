@@ -67,6 +67,7 @@ class CommunicationScreenTest {
     fun actionButtonsDisplayed() {
         composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {}) }
         composeTestRule.onNodeWithTag("SaveButton").assertExists()
+        composeTestRule.onNodeWithTag("FilterButton").assertExists()
         composeTestRule.onNodeWithTag("ClearButton").assertExists()
     }
 
@@ -75,12 +76,14 @@ class CommunicationScreenTest {
         composeTestRule.setContent { CommunicationScreen(emptyList(), currentScenario = null, isRunning = false, isSilenced = false, onToggleRun = {}, onClearScenario = {}, onToggleSilence = {}) }
 
         val logWidth = composeTestRule.onNodeWithTag("ServerLog").fetchSemanticsNode().size.width
-        val spacing = with(composeTestRule.density) { 8.dp.roundToPx() }
-        val expected = (logWidth - spacing) / 2
+        val spacing = with(composeTestRule.density) { 16.dp.roundToPx() }
+        val expected = (logWidth - spacing) / 3
         val saveWidth = composeTestRule.onNodeWithTag("SaveButton").fetchSemanticsNode().size.width
+        val filterWidth = composeTestRule.onNodeWithTag("FilterButton").fetchSemanticsNode().size.width
         val clearWidth = composeTestRule.onNodeWithTag("ClearButton").fetchSemanticsNode().size.width
 
         assertEquals(expected, saveWidth)
+        assertEquals(expected, filterWidth)
         assertEquals(expected, clearWidth)
     }
 

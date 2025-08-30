@@ -31,6 +31,29 @@ object CommunicationFilter {
         context?.let { save(it, newSet) }
     }
 
+    /** Removes a [pattern] from the filter set. */
+    fun remove(pattern: String, context: Context? = null) {
+        val newSet = _filters.value.filterNot { it == pattern }.toSet()
+        _filters.value = newSet.toList()
+        context?.let { save(it, newSet) }
+    }
+
+    /** Replaces an existing [old] pattern with [new]. */
+    fun replace(old: String, new: String, context: Context? = null) {
+        val cleaned = new.uppercase()
+        if (!isValid(cleaned)) return
+        val newSet = (_filters.value - old + cleaned).toSet()
+        _filters.value = newSet.toList()
+        context?.let { save(it, newSet) }
+    }
+
+    /** Sets all filters from [list], replacing any existing values. */
+    fun setAll(list: List<String>, context: Context) {
+        val cleaned = list.map { it.uppercase() }.filter { isValid(it) }.toSet()
+        _filters.value = cleaned.toList()
+        save(context, cleaned)
+    }
+
     /** Removes all stored filters. */
     fun clear(context: Context? = null) {
         _filters.value = emptyList()

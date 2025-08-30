@@ -26,5 +26,16 @@ class CommunicationFilterTest {
         assertTrue(CommunicationFilter.shouldHide("11900"))
         assertFalse(CommunicationFilter.shouldHide("90011"))
     }
+
+    @Test
+    fun removeAndReplace() {
+        CommunicationFilter.add("AABB")
+        CommunicationFilter.remove("AABB")
+        assertFalse(CommunicationFilter.shouldHide("REQ: AABB"))
+        CommunicationFilter.add("AABB")
+        CommunicationFilter.replace("AABB", "CCDD")
+        assertTrue(CommunicationFilter.shouldHide("REQ: CCDD"))
+        assertFalse(CommunicationFilter.shouldHide("REQ: AABB"))
+    }
 }
 

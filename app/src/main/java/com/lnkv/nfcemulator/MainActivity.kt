@@ -170,6 +170,7 @@ class MainActivity : ComponentActivity() {
         }
 
         ScenarioManager.load(this)
+        CommunicationFilter.load(this)
         Log.d(TAG, "initialization complete")
 
         setContent {
@@ -561,6 +562,13 @@ fun CommunicationScreen(
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
+    var showFilterDialog by remember { mutableStateOf(false) }
+    val filters by CommunicationFilter.filters.collectAsState()
+    val filteredEntries = remember(entries, filters) {
+        entries.filterNot { CommunicationFilter.shouldHide(it.message) }
+    }
+    val serverEntries = filteredEntries.filter { it.isServer }
+    val nfcEntries = filteredEntries.filter { !it.isServer }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         MultiChoiceSegmentedButtonRow(
             modifier = Modifier
@@ -645,9 +653,6 @@ fun CommunicationScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        val serverEntries = entries.filter { it.isServer }
-        val nfcEntries = entries.filter { !it.isServer }
-
         if (showServer) {
             CommunicationLogList(
                 label = "Server Communication",
@@ -669,6 +674,12 @@ fun CommunicationScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Button(onClick = { showFilterDialog = true }, modifier = Modifier.testTag("CommFilterButton")) {
+                Text("Filters")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         val context = LocalContext.current
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -689,6 +700,10 @@ fun CommunicationScreen(
             ) {
                 Text("Clear Communication")
             }
+        }
+
+        if (showFilterDialog) {
+            FilterDialog(onDismiss = { showFilterDialog = false })
         }
     }
 }
@@ -1709,5 +1724,54 @@ private fun CommunicationLogList(
             }
         }
     }
+}
+
+@Composable
+private fun FilterDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val filters by CommunicationFilter.filters.collectAsState()
+    var input by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                ) {
+                    items(filters) { Text(it) }
+                }
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = {
+                        if (it.uppercase().matches(Regex("[0-9A-F*]*"))) input = it.uppercase()
+                    },
+                    label = { Text("Add Filter") }
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            CommunicationFilter.add(input, context)
+                            input = ""
+                        },
+                        enabled = input.isNotBlank(),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Add") }
+                    Button(
+                        onClick = { CommunicationFilter.clear(context) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Clear") }
+                }
+            }
+        }
+    )
 }
 

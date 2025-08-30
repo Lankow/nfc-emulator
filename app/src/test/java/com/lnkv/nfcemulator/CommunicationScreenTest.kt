@@ -3,6 +3,7 @@ package com.lnkv.nfcemulator
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertTrue
@@ -12,6 +13,11 @@ class CommunicationScreenTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Before
+    fun setup() {
+        CommunicationFilter.clear()
+    }
 
     @Test
     fun showsServerAndNfcMessages() {

@@ -67,7 +67,8 @@ object ScenarioManager {
         if (running && name != null) {
             CommunicationLog.add("STATE-SCEN: Scenario '$name' started.", true, true)
             if (scenarioAid.isNotEmpty()) {
-                CommunicationLog.add("AID to Select: $scenarioAid", true)
+                val onceText = if (selectOnce) "Yes" else "No"
+                CommunicationLog.add("AID to Select: $scenarioAid (Select once: $onceText)", true)
             }
         } else if (!running && name != null) {
             CommunicationLog.add("STATE-SCEN: Scenario '$name' stopped.", true, false)

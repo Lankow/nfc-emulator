@@ -695,8 +695,12 @@ fun CommunicationScreen(
                 Text("Save")
             }
             Button(
-                onClick = { showFilterScreen = true },
-                modifier = Modifier.weight(1f).testTag("FilterButton")
+                onClick = { showFilterScreen = !showFilterScreen },
+                modifier = Modifier.weight(1f).testTag("FilterButton"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (showFilterScreen) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary,
+                    contentColor = if (showFilterScreen) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Icon(Icons.Filled.Search, contentDescription = "Filters")
                 Spacer(Modifier.width(4.dp))
@@ -713,7 +717,7 @@ fun CommunicationScreen(
         }
 
         if (showFilterScreen) {
-            FilterScreen(onClose = { showFilterScreen = false })
+            FilterScreen()
         }
     }
 }
@@ -1102,8 +1106,7 @@ fun ScenarioEditor(
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     itemsIndexed(steps) { index, step ->
                         val isSelected = selectedStep == index
-                        Text(
-                            step.name,
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
@@ -1112,9 +1115,30 @@ fun ScenarioEditor(
                                     else Color.Transparent
                                 )
                                 .clickable { selectedStep = index }
-                                .padding(12.dp)
-                                .testTag("StepItem$index")
-                        )
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .testTag("StepItem$index"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(step.name, modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = { editingStepIndex = index },
+                                modifier = Modifier.testTag("StepEdit$index")
+                            ) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit Step")
+                            }
+                            IconButton(
+                                onClick = {
+                                    steps.removeAt(index)
+                                    if (selectedStep == index) selectedStep = null
+                                },
+                                modifier = Modifier.testTag("StepDelete$index")
+                            ) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete Step")
+                            }
+                        }
+                        if (index < steps.lastIndex) {
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
@@ -1127,11 +1151,6 @@ fun ScenarioEditor(
                     onClick = { editingStepIndex = -1 },
                     modifier = Modifier.weight(1f).testTag("StepNew")
                 ) { Text("New Step") }
-                Button(
-                    onClick = { editingStepIndex = selectedStep },
-                    enabled = selectedStep != null,
-                    modifier = Modifier.weight(1f).testTag("StepEdit")
-                ) { Text("Edit Step") }
                 Button(
                     onClick = { showClearDialog = true },
                     modifier = Modifier.weight(1f).testTag("StepClear")
@@ -1761,10 +1780,9 @@ private fun CommunicationLogList(
 }
 
 @Composable
-private fun FilterScreen(onClose: () -> Unit) {
+private fun FilterScreen() {
     val context = LocalContext.current
     val filters by CommunicationFilter.filters.collectAsState()
-    var newFilter by remember { mutableStateOf("") }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var editInput by rememberSaveable { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
@@ -1854,27 +1872,6 @@ private fun FilterScreen(onClose: () -> Unit) {
             }
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = newFilter,
-                onValueChange = {
-                    if (it.uppercase().matches(Regex("[0-9A-F*]*"))) newFilter = it.uppercase()
-                },
-                label = { Text("New Filter") },
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-            Button(
-                onClick = {
-                    CommunicationFilter.add(newFilter, context)
-                    newFilter = ""
-                },
-                enabled = newFilter.isNotBlank()
-            ) { Text("Add") }
-        }
         Spacer(modifier = Modifier.height(8.dp))
         Box(
             modifier = Modifier
@@ -1908,8 +1905,6 @@ private fun FilterScreen(onClose: () -> Unit) {
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onClose, modifier = Modifier.align(Alignment.End)) { Text("Close") }
     }
 }
 

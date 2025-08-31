@@ -28,10 +28,6 @@ class TypeAEmulatorService : HostApduService() {
             val apduHex = commandApdu.toHex()
             val respHex = response?.toHex()
             Log.d(TAG, "APDU: $apduHex -> $respHex")
-            if (isSelectCommand(commandApdu)) {
-                val aid = extractAid(commandApdu)
-                CommunicationLog.add("SELECT AID: $aid", false)
-            }
             CommunicationLog.add("REQ: $apduHex", false)
             CommunicationLog.add(
                 "RESP: ${respHex ?: "null"}",
@@ -57,17 +53,3 @@ class TypeAEmulatorService : HostApduService() {
  */
 private fun ByteArray.toHex(): String =
     joinToString("") { "%02X".format(it.toInt() and 0xFF) }
-
-private fun isSelectCommand(apdu: ByteArray): Boolean {
-    return apdu.size >= 4 &&
-        apdu[0] == 0x00.toByte() &&
-        apdu[1] == 0xA4.toByte() &&
-        apdu[2] == 0x04.toByte()
-}
-
-private fun extractAid(apdu: ByteArray): String {
-    if (apdu.size < 5) return ""
-    val lc = apdu[4].toInt() and 0xFF
-    if (apdu.size < 5 + lc) return ""
-    return apdu.copyOfRange(5, 5 + lc).toHex()
-}

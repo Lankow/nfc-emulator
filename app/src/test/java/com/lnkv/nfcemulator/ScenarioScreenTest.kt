@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertDoesNotExist
 import org.junit.Rule
 import org.junit.Test
 
@@ -75,5 +76,27 @@ class ScenarioScreenTest {
         composeTestRule.onNodeWithTag("StepNew").performClick()
         composeTestRule.onNodeWithTag("StepName").performTextInput("Step One")
         composeTestRule.onNodeWithTag("StepName").assertTextEquals("Step One")
+    }
+
+    @Test
+    fun editIconOpensStepEditor() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("StepNew").performClick()
+        composeTestRule.onNodeWithTag("StepName").performTextInput("S1")
+        composeTestRule.onNodeWithTag("StepSave").performClick()
+        composeTestRule.onNodeWithTag("StepEdit0").performClick()
+        composeTestRule.onNodeWithTag("StepName").assertExists()
+    }
+
+    @Test
+    fun deleteIconRemovesStep() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("StepNew").performClick()
+        composeTestRule.onNodeWithTag("StepName").performTextInput("S1")
+        composeTestRule.onNodeWithTag("StepSave").performClick()
+        composeTestRule.onNodeWithTag("StepDelete0").performClick()
+        composeTestRule.onNodeWithTag("StepItem0").assertDoesNotExist()
     }
 }

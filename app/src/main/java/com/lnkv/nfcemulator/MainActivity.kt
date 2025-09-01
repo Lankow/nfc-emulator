@@ -97,6 +97,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
@@ -311,7 +312,7 @@ fun StepEditor(
     val reqValid = request.matches(hexRegex) && request.length % 2 == 0
     val respValid = response.matches(hexRegex) && response.length % 2 == 0
     val nameUnique = name.isNotBlank() && (name == step.name || !existingNames.contains(name))
-
+    BackHandler(onBack = onCancel)
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
             value = name,
@@ -506,6 +507,10 @@ fun MainScreen() {
     val isRunning by ScenarioManager.running.collectAsState()
     val isSilenced by ScenarioManager.silenced.collectAsState()
     val context = LocalContext.current
+
+    BackHandler(enabled = currentScreen != Screen.Communication) {
+        currentScreen = Screen.Communication
+    }
 
     androidx.compose.material3.Scaffold(
         bottomBar = {
@@ -735,6 +740,7 @@ fun CommunicationScreen(
         }
 
         if (showFilterScreen) {
+            BackHandler { showFilterScreen = false }
             FilterScreen()
         }
     }
@@ -776,6 +782,7 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
     }
 
     if (editingIndex != null) {
+        BackHandler { editingIndex = null }
         val isNew = editingIndex == -1
         val workingScenario = remember(editingIndex) {
             if (isNew) Scenario("", "") else {
@@ -1088,6 +1095,7 @@ fun ScenarioEditor(
             onCancel = { editingStepIndex = null }
         )
     } else {
+        BackHandler(onBack = onCancel)
         Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
             OutlinedTextField(
                 value = title,

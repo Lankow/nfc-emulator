@@ -293,6 +293,7 @@ fun <T> EnumSpinner(
 fun StepEditor(
     modifier: Modifier = Modifier,
     step: Step,
+    existingNames: List<String> = emptyList(),
     onSave: (Step) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -302,6 +303,7 @@ fun StepEditor(
     val hexRegex = remember { Regex("^[0-9A-Fa-f]*$") }
     val reqValid = request.matches(hexRegex) && request.length % 2 == 0
     val respValid = response.matches(hexRegex) && response.length % 2 == 0
+    val nameUnique = name.isNotBlank() && (name == step.name || !existingNames.contains(name))
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         OutlinedTextField(
@@ -310,6 +312,7 @@ fun StepEditor(
                 if (input.all { it.isLetterOrDigit() || it in listOf('_', '-', '.', ' ') }) name = input
             },
             label = { Text("Step Name") },
+            isError = name.isBlank() || (name != step.name && existingNames.contains(name)),
             trailingIcon = {
                 IconButton(onClick = { name = "" }) {
                     Icon(Icons.Filled.Close, contentDescription = "Clear step name")
@@ -351,7 +354,7 @@ fun StepEditor(
                     step.response = response
                     onSave(step)
                 },
-                enabled = reqValid && respValid,
+                enabled = reqValid && respValid && nameUnique,
                 modifier = Modifier.weight(1f).testTag("StepSave")
             ) { Text("Save") }
             Button(
@@ -406,21 +409,26 @@ private fun saveScenarios(context: Context, scenarios: List<Scenario>) {
 private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
     val prefs = context.getSharedPreferences(SCENARIO_PREFS, Context.MODE_PRIVATE)
     val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet())!!
-    return serialized.map { line ->
+    return serialized.mapNotNull { line ->
         val parts = line.split("|", limit = 2)
         val header = parts[0].split(";", limit = 3)
         val name = header.getOrElse(0) { "" }
+        if (name.isBlank()) return@mapNotNull null
         val aid = header.getOrElse(1) { "" }
         val selectOnce = header.getOrElse(2) { "false" }.toBoolean()
         val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
-            parts[1].split(",").map { stepStr ->
+            parts[1].split(",").mapNotNull { stepStr ->
                 val sp = stepStr.split(";")
+                val stepName = sp.getOrElse(0) { "" }
+                if (stepName.isBlank()) return@mapNotNull null
                 Step(
-                    sp.getOrElse(0) { "" },
+                    stepName,
                     sp.getOrElse(1) { "" },
                     sp.getOrElse(2) { "" }
                 )
-            }.toMutableStateList()
+            }.associateBy { it.name }
+                .values
+                .toMutableStateList()
         } else mutableStateListOf()
         Scenario(name = name, aid = aid, selectOnce = selectOnce, steps = steps)
     }.toMutableStateList()
@@ -461,20 +469,23 @@ private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
     val scenarios = mutableListOf<Scenario>()
     for (i in 0 until array.length()) {
         val obj = array.getJSONObject(i)
+        val name = obj.optString("name")
+        if (name.isBlank()) continue
         val stepsArray = obj.optJSONArray("steps") ?: JSONArray()
-        val steps = mutableStateListOf<Step>()
+        val map = mutableMapOf<String, Step>()
         for (j in 0 until stepsArray.length()) {
-            val stepObj = stepsArray.getJSONObject(j)
-            steps.add(
-                Step(
-                    stepObj.getString("name"),
-                    stepObj.optString("request"),
-                    stepObj.optString("response")
-                )
+            val stepObj = stepsArray.optJSONObject(j) ?: continue
+            val stepName = stepObj.optString("name")
+            if (stepName.isBlank() || map.containsKey(stepName)) continue
+            map[stepName] = Step(
+                stepName,
+                stepObj.optString("request"),
+                stepObj.optString("response")
             )
         }
         val selectOnce = obj.optBoolean("selectOnce", false)
-        scenarios.add(Scenario(obj.getString("name"), obj.optString("aid"), selectOnce, steps))
+        scenarios.removeAll { it.name == name }
+        scenarios.add(Scenario(name, obj.optString("aid"), selectOnce, map.values.toMutableList().toMutableStateList()))
     }
     return scenarios
 }
@@ -774,7 +785,15 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
             modifier = modifier,
             scenario = workingScenario,
             onSave = { updated ->
-                if (isNew) scenarios.add(updated) else scenarios[editingIndex!!] = updated
+                val existingIndex = scenarios.indexOfFirst { it.name == updated.name }
+                if (existingIndex >= 0) {
+                    scenarios[existingIndex] = updated
+                    if (!isNew && existingIndex != editingIndex) {
+                        scenarios.removeAt(editingIndex!!)
+                    }
+                } else {
+                    if (isNew) scenarios.add(updated) else scenarios[editingIndex!!] = updated
+                }
                 editingIndex = null
                 selected.clear()
                 saveScenarios(context, scenarios)
@@ -1047,9 +1066,13 @@ fun ScenarioEditor(
         val workingStep = remember(editingStepIndex) {
             if (isNewStep) Step("") else steps[editingStepIndex!!].copy()
         }
+        val otherNames = steps.mapIndexed { index, s -> index to s.name }
+            .filter { it.first != editingStepIndex }
+            .map { it.second }
         StepEditor(
             modifier = modifier,
             step = workingStep,
+            existingNames = otherNames,
             onSave = { updated ->
                 if (isNewStep) steps.add(updated) else steps[editingStepIndex!!] = updated
                 editingStepIndex = null

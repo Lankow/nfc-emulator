@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertIsNotEnabled
 import org.junit.Rule
 import org.junit.Test
 
@@ -98,5 +99,39 @@ class ScenarioScreenTest {
         composeTestRule.onNodeWithTag("StepSave").performClick()
         composeTestRule.onNodeWithTag("StepDelete0").performClick()
         composeTestRule.onNodeWithTag("StepItem0").assertDoesNotExist()
+    }
+
+    @Test
+    fun duplicateScenarioOverwritesExisting() {
+        composeTestRule.setContent { ScenarioScreen() }
+        // add first scenario
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioAid").performTextInput("A0000002471001")
+        composeTestRule.onNodeWithTag("ScenarioSave").performClick()
+        // add another with same name but different aid
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        composeTestRule.onNodeWithTag("ScenarioTitle").performTextInput("S1")
+        composeTestRule.onNodeWithTag("ScenarioAid").performTextInput("A0000002471002")
+        composeTestRule.onNodeWithTag("ScenarioSave").performClick()
+        // ensure only one scenario exists and aid is updated
+        composeTestRule.onNodeWithTag("ScenarioItem1").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("ScenarioItem0").performClick()
+        composeTestRule.onNodeWithTag("ScenarioEdit0").performClick()
+        composeTestRule.onNodeWithTag("ScenarioAid").assertTextEquals("A0000002471002")
+    }
+
+    @Test
+    fun stepNameMustBeUnique() {
+        composeTestRule.setContent { ScenarioScreen() }
+        composeTestRule.onNodeWithTag("ScenarioNew").performClick()
+        // first step
+        composeTestRule.onNodeWithTag("StepNew").performClick()
+        composeTestRule.onNodeWithTag("StepName").performTextInput("S1")
+        composeTestRule.onNodeWithTag("StepSave").performClick()
+        // second step with same name
+        composeTestRule.onNodeWithTag("StepNew").performClick()
+        composeTestRule.onNodeWithTag("StepName").performTextInput("S1")
+        composeTestRule.onNodeWithTag("StepSave").assertIsNotEnabled()
     }
 }

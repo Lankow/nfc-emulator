@@ -218,15 +218,18 @@ object ServerJsonHandler {
         val steps = mutableListOf<Step>()
         val arr = obj.optJSONArray("steps")
         if (arr != null) {
+            val map = mutableMapOf<String, Step>()
             for (i in 0 until arr.length()) {
                 val stepObj = arr.optJSONObject(i) ?: continue
-                val step = Step(
-                    stepObj.optString("name"),
+                val stepName = stepObj.optString("name")
+                if (stepName.isBlank() || map.containsKey(stepName)) continue
+                map[stepName] = Step(
+                    stepName,
                     stepObj.optString("request"),
                     stepObj.optString("response")
                 )
-                steps.add(step)
             }
+            steps.addAll(map.values)
         }
         Log.d(TAG, "parseScenario: $name steps=${steps.size} aid=$aid selectOnce=$selectOnce")
         return Scenario(name, aid, selectOnce, steps.toMutableList().toMutableStateList())

@@ -20,6 +20,7 @@ object ServerJsonHandler {
                 "Comm" -> handleComm(obj)
                 "Scenarios" -> handleScenarios(obj)
                 "Filters" -> handleFilters(obj)
+                "Reset" -> handleReset()
             }
         } catch (e: Exception) {
             Log.d(TAG, "parse error: ${e.message}")
@@ -205,6 +206,20 @@ object ServerJsonHandler {
             Log.d(TAG, "handleScenarios: setCurrent $current")
             ScenarioManager.setCurrent(context, current)
         }
+    }
+
+    private fun handleReset() {
+        val context = AppContextHolder.context
+        ScenarioManager.setRunning(false)
+        ScenarioManager.clearScenarios(context)
+        try {
+            AidManager.clear()
+        } catch (_: UninitializedPropertyAccessException) {
+            Log.d(TAG, "handleReset: AidManager not initialized")
+        }
+        CommunicationFilter.clear(context)
+        CommunicationLog.clear()
+        CommunicationLog.add("STATE-APP: Reset executed.", true, true)
     }
 
     private fun parseScenario(obj: JSONObject): Scenario? {

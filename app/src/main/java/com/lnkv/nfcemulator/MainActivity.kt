@@ -10,6 +10,7 @@ import android.nfc.NfcAdapter
 import android.nfc.cardemulation.CardEmulation
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.NavigationBar
@@ -129,6 +130,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         Log.d(TAG, "onCreate")
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // Disable back button to keep the app in the foreground
+            }
+        })
 
         val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         cardEmulation = CardEmulation.getInstance(nfcAdapter)

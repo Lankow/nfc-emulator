@@ -20,6 +20,7 @@ object ServerJsonHandler {
                 "Comm" -> handleComm(obj)
                 "Scenarios" -> handleScenarios(obj)
                 "Filters" -> handleFilters(obj)
+                "Reset" -> handleReset()
             }
         } catch (e: Exception) {
             Log.d(TAG, "parse error: ${e.message}")
@@ -207,6 +208,20 @@ object ServerJsonHandler {
         }
     }
 
+    private fun handleReset() {
+        val context = AppContextHolder.context
+        ScenarioManager.setRunning(false)
+        ScenarioManager.clearScenarios(context)
+        try {
+            AidManager.clear()
+        } catch (_: UninitializedPropertyAccessException) {
+            Log.d(TAG, "handleReset: AidManager not initialized")
+        }
+        CommunicationFilter.clear(context)
+        CommunicationLog.clear()
+        CommunicationLog.add("STATE-APP: Reset executed.", true, true)
+    }
+
     private fun parseScenario(obj: JSONObject): Scenario? {
         val name = obj.optString("name")
         if (name.isBlank()) {
@@ -218,15 +233,18 @@ object ServerJsonHandler {
         val steps = mutableListOf<Step>()
         val arr = obj.optJSONArray("steps")
         if (arr != null) {
+            val map = mutableMapOf<String, Step>()
             for (i in 0 until arr.length()) {
                 val stepObj = arr.optJSONObject(i) ?: continue
-                val step = Step(
-                    stepObj.optString("name"),
+                val stepName = stepObj.optString("name")
+                if (stepName.isBlank() || map.containsKey(stepName)) continue
+                map[stepName] = Step(
+                    stepName,
                     stepObj.optString("request"),
                     stepObj.optString("response")
                 )
-                steps.add(step)
             }
+            steps.addAll(map.values)
         }
         Log.d(TAG, "parseScenario: $name steps=${steps.size} aid=$aid selectOnce=$selectOnce")
         return Scenario(name, aid, selectOnce, steps.toMutableList().toMutableStateList())

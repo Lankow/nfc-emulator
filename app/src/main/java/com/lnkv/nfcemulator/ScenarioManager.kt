@@ -89,9 +89,17 @@ object ScenarioManager {
     }
 
     fun addScenario(context: Context, scenario: Scenario) {
+        if (scenario.name.isBlank()) return
+        val uniqueSteps = scenario.steps
+            .filter { it.name.isNotBlank() }
+            .associateBy { it.name }
+            .values
+            .toMutableList()
+            .toMutableStateList()
+        val sanitized = scenario.copy(steps = uniqueSteps)
         val scenarios = loadAllScenarios(context)
-        scenarios.removeAll { it.name == scenario.name }
-        scenarios.add(scenario)
+        scenarios.removeAll { it.name == sanitized.name }
+        scenarios.add(sanitized)
         saveAllScenarios(context, scenarios)
     }
 
@@ -155,9 +163,12 @@ object ScenarioManager {
         val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
             parts[1].split(",").mapNotNull { stepStr ->
                 val sp = stepStr.split(";")
-                if (sp.size < 3) return@mapNotNull null
+                if (sp.size < 3 || sp[0].isBlank()) return@mapNotNull null
                 Step(sp[0], sp[1], sp[2])
-            }.toMutableList().toMutableStateList()
+            }.associateBy { it.name }
+                .values
+                .toMutableList()
+                .toMutableStateList()
         } else mutableStateListOf()
         return Scenario(name, aid, selectOnce, steps)
     }
@@ -169,14 +180,18 @@ object ScenarioManager {
             val parts = line.split("|", limit = 2)
             val header = parts[0].split(";", limit = 3)
             val name = header.getOrElse(0) { return@mapNotNull null }
+            if (name.isBlank()) return@mapNotNull null
             val aid = header.getOrElse(1) { "" }
             val selectOnce = header.getOrElse(2) { "false" }.toBoolean()
             val steps = if (parts.size > 1 && parts[1].isNotEmpty()) {
                 parts[1].split(",").mapNotNull { stepStr ->
                     val sp = stepStr.split(";")
-                    if (sp.size < 3) return@mapNotNull null
+                    if (sp.size < 3 || sp[0].isBlank()) return@mapNotNull null
                     Step(sp[0], sp[1], sp[2])
-                }.toMutableList().toMutableStateList()
+                }.associateBy { it.name }
+                    .values
+                    .toMutableList()
+                    .toMutableStateList()
             } else mutableStateListOf()
             Scenario(name, aid, selectOnce, steps)
         }.toMutableList()

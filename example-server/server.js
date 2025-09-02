@@ -12,21 +12,27 @@ const aids = new Set();
 const scenarios = new Map();
 let logEntries = [];
 
+// Queue of pending commands for the app to fetch via GET /
+const queue = [];
+
 // Unified POST endpoint matching the app's internal server API.
 app.post('/', async (req, res) => {
   try {
     const data = req.body;
+    console.log('POST / -> queued command:', JSON.stringify(data));
+    queue.push(data);
+
     if (data.Type) {
       switch (data.Type) {
         case 'Aid':
           handleAid(data);
-          return res.status(HTTP_OK).json({ aids: Array.from(aids) });
+          return res.status(HTTP_OK).json({ queued: queue.length, aids: Array.from(aids) });
         case 'Comm':
           handleComm(data);
-          return res.status(HTTP_OK).json({ logLength: logEntries.length });
+          return res.status(HTTP_OK).json({ queued: queue.length, logLength: logEntries.length });
         case 'Scenarios':
           handleScenarios(data);
-          return res.status(HTTP_OK).json({ scenarios: Array.from(scenarios.keys()) });
+          return res.status(HTTP_OK).json({ queued: queue.length, scenarios: Array.from(scenarios.keys()) });
         default:
           return res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Unknown Type' });
       }
@@ -37,12 +43,13 @@ app.post('/', async (req, res) => {
     if (data.Scenarios) handleScenarios(data.Scenarios);
 
     return res.status(HTTP_OK).json({
+      queued: queue.length,
       aids: Array.from(aids),
       logLength: logEntries.length,
       scenarios: Array.from(scenarios.keys())
     });
   } catch (err) {
-    console.error(err);
+    console.error('POST / -> error', err);
     res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
   }
 });
@@ -79,10 +86,15 @@ function handleScenarios({ Add, Remove, Clear, Current }) {
   if (Current) console.log(`Set current scenario to ${Current}`);
 }
 
-// Polling endpoint used by the app's ServerConnectionManager. Respond with an
-// empty body so URL.readText() succeeds without generating log entries.
+// Polling endpoint used by the app's ServerConnectionManager.
 app.get('/', (_req, res) => {
-  res.status(HTTP_OK).end();
+  if (queue.length === 0) {
+    console.log('GET / -> no queued commands');
+    return res.status(HTTP_OK).end();
+  }
+  const next = queue.shift();
+  console.log('GET / -> dispatching command:', JSON.stringify(next));
+  res.status(HTTP_OK).json(next);
 });
 
 app.listen(PORT, () => {

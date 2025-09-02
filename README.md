@@ -137,9 +137,9 @@ completed before the request is matched.
 ## Example external server
 
 A minimal Node.js implementation of this HTTP API is provided in
-[`example-server/`](example-server/). It allows controlling the app from a
-desktop machine or other external tools and handles multiple commands
-concurrently.
+[`example-server/`](example-server/). `POST /` requests queue command payloads
+and the app retrieves them by polling `GET /`. The server logs each request to
+stdout so you can see when commands are queued and dispatched.
 
 ## Code Structure
 

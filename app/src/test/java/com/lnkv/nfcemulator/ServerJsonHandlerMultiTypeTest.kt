@@ -21,7 +21,8 @@ class ServerJsonHandlerMultiTypeTest {
     @Test
     fun handlesMultipleSections() {
         val json = "{\"Comm\":{\"Clear\":true},\"Filters\":{\"Add\":\"AABB\"}}"
-        ServerJsonHandler.handle(json)
+        val cleared = ServerJsonHandler.handle(json)
+        assertTrue(cleared)
         assertTrue(CommunicationFilter.filters.value.contains("AABB"))
         assertTrue(CommunicationLog.entries.value.isEmpty())
     }

@@ -52,6 +52,16 @@ curl -X POST http://<DEVICE_IP>:<PORT>/ -H "Content-Type: application/json" \
   -d '{"Aid":{"Add":"A0000002471001"},"Comm":{"Clear":true}}'
 ```
 
+For a broader example that registers AIDs, adds a scenario, applies a filter and
+clears the log in one request, see
+[`example-server/multi-command-request.json`](example-server/multi-command-request.json)
+and post it with:
+
+```bash
+curl -X POST http://<DEVICE_IP>:<PORT>/ -H "Content-Type: application/json" \
+  -d @example-server/multi-command-request.json
+```
+
 #### `Aid`
 
 Manage registered Application Identifiers.

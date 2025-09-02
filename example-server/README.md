@@ -31,3 +31,13 @@ of the app. Multiple command groups may be combined in one payload. Example:
 curl -X POST http://localhost:1818/ -H "Content-Type: application/json" \
   -d '{"Aid":{"Add":"A0000002471001"},"Comm":{"Clear":true}}'
 ```
+
+For a more comprehensive demo, the repository includes
+[`multi-command-request.json`](multi-command-request.json) which registers two
+AIDs, adds a scenario, sets it as current, adds a communication filter and clears
+the log all at once:
+
+```bash
+curl -X POST http://localhost:1818/ -H "Content-Type: application/json" \
+  -d @multi-command-request.json
+```

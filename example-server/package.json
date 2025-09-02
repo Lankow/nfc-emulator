@@ -1,0 +1,12 @@
+{
+  "name": "nfc-external-server",
+  "version": "1.0.0",
+  "description": "Example external server for the NFC emulator app.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

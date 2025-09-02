@@ -3,7 +3,7 @@
 This Node.js server demonstrates how an external controller can interact with
 the NFC Emulator app using the same JSON API exposed by the internal server.
 It keeps AIDs, scenarios and a communication log in memory and can handle
-multiple requests concurrently.
+multiple commands in a single request or concurrently across requests.
 
 ## Setup
 
@@ -25,9 +25,9 @@ variable to change it.
 
 All commands are sent as `POST` requests with a JSON body to the root path `/`.
 The payload structure matches the [HTTP Control API](../README.md#http-control-api)
-of the app. Example:
+of the app. Multiple command groups may be combined in one payload. Example:
 
 ```bash
 curl -X POST http://localhost:1818/ -H "Content-Type: application/json" \
-  -d '{"Type":"Aid","Add":"A0000002471001"}'
+  -d '{"Aid":{"Add":"A0000002471001"},"Comm":{"Clear":true}}'
 ```

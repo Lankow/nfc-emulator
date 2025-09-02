@@ -15,13 +15,24 @@ object ServerJsonHandler {
         Log.d(TAG, "handle: $jsonStr")
         try {
             val obj = JSONObject(jsonStr)
-            when (obj.optString("Type")) {
-                "Aid" -> handleAid(obj)
-                "Comm" -> handleComm(obj)
-                "Scenarios" -> handleScenarios(obj)
-                "Filters" -> handleFilters(obj)
-                "Reset" -> handleReset()
+
+            val type = obj.optString("Type")
+            if (type.isNotBlank()) {
+                when (type) {
+                    "Aid" -> handleAid(obj)
+                    "Comm" -> handleComm(obj)
+                    "Scenarios" -> handleScenarios(obj)
+                    "Filters" -> handleFilters(obj)
+                    "Reset" -> handleReset()
+                }
+                return
             }
+
+            obj.optJSONObject("Aid")?.let { handleAid(it) }
+            obj.optJSONObject("Comm")?.let { handleComm(it) }
+            obj.optJSONObject("Scenarios")?.let { handleScenarios(it) }
+            obj.optJSONObject("Filters")?.let { handleFilters(it) }
+            if (obj.has("Reset")) handleReset()
         } catch (e: Exception) {
             Log.d(TAG, "parse error: ${e.message}")
             CommunicationLog.add("JSON ERR: ${e.message}", true, false)

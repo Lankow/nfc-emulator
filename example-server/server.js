@@ -15,20 +15,32 @@ let logEntries = [];
 // Unified POST endpoint matching the app's internal server API.
 app.post('/', async (req, res) => {
   try {
-    const { Type } = req.body;
-    switch (Type) {
-      case 'Aid':
-        handleAid(req.body);
-        return res.status(HTTP_OK).json({ aids: Array.from(aids) });
-      case 'Comm':
-        handleComm(req.body);
-        return res.status(HTTP_OK).json({ logLength: logEntries.length });
-      case 'Scenarios':
-        handleScenarios(req.body);
-        return res.status(HTTP_OK).json({ scenarios: Array.from(scenarios.keys()) });
-      default:
-        return res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Unknown Type' });
+    const data = req.body;
+    if (data.Type) {
+      switch (data.Type) {
+        case 'Aid':
+          handleAid(data);
+          return res.status(HTTP_OK).json({ aids: Array.from(aids) });
+        case 'Comm':
+          handleComm(data);
+          return res.status(HTTP_OK).json({ logLength: logEntries.length });
+        case 'Scenarios':
+          handleScenarios(data);
+          return res.status(HTTP_OK).json({ scenarios: Array.from(scenarios.keys()) });
+        default:
+          return res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Unknown Type' });
+      }
     }
+
+    if (data.Aid) handleAid(data.Aid);
+    if (data.Comm) handleComm(data.Comm);
+    if (data.Scenarios) handleScenarios(data.Scenarios);
+
+    return res.status(HTTP_OK).json({
+      aids: Array.from(aids),
+      logLength: logEntries.length,
+      scenarios: Array.from(scenarios.keys())
+    });
   } catch (err) {
     console.error(err);
     res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });

@@ -35,40 +35,52 @@ with a JSON body to `http://<DEVICE_IP>:<PORT>/`.
 
 ### Command structure
 
-Each request must contain a top-level `Type` field that determines the payload:
+Commands are grouped by top-level keys. A request may include any combination of
+the following objects: `Aid`, `Comm`, `Scenarios`, `Filters`, and `Reset`.
+Each object mirrors the fields described below. For compatibility, older
+payloads that use a single `Type` field are still accepted.
 
-#### `Type: "Aid"`
+Example combining AID registration and log clearing:
+
+```bash
+curl -X POST http://<DEVICE_IP>:<PORT>/ -H "Content-Type: application/json" \
+  -d '{"Aid":{"Add":"A0000002471001"},"Comm":{"Clear":true}}'
+```
+
+#### `Aid`
 
 Manage registered Application Identifiers.
 
 ```json
 {
-  "Type": "Aid",
-  "Add": ["A0000002471001", "A0000002471002"],   // optional AIDs to add
-  "Remove": ["A0000002471003"],                  // optional AIDs to remove
-  "Clear": false                                 // set true to unregister all AIDs
+  "Aid": {
+    "Add": ["A0000002471001", "A0000002471002"],   // optional AIDs to add
+    "Remove": ["A0000002471003"],                  // optional AIDs to remove
+    "Clear": false                                 // set true to unregister all AIDs
+  }
 }
 ```
 `Add` and `Remove` accept either a single string or an array of strings.
 
-#### `Type: "Comm"`
+#### `Comm`
 
 Control the communication log and scenarios.
 
 ```json
 {
-  "Type": "Comm",
-  "Clear": false,            // clear the log when true
-  "Save": true,              // save log to file when true
-  "Mute": false,             // mute/unmute communication
-  "CurrentScenario": "Start" // "Start", "Stop" or "Clear"
+  "Comm": {
+    "Clear": false,            // clear the log when true
+    "Save": true,              // save log to file when true
+    "Mute": false,             // mute/unmute communication
+    "CurrentScenario": "Start" // "Start", "Stop" or "Clear"
+  }
 }
 ```
 
 Requests receive a simple `200 OK` response. Additional command types may be
 introduced in future versions.
 
-#### `Type: "Scenarios"`
+#### `Scenarios`
 
 Create or manage scenarios.
 Steps may be of type `Select`, which waits for an AID selection, or
@@ -78,11 +90,11 @@ completed before the request is matched.
 
 ```json
 {
-  "Type": "Scenarios",
-  "Add": [
-    {
-      "name": "MyScenario",
-      "steps": [
+  "Scenarios": {
+    "Add": [
+      {
+        "name": "MyScenario",
+        "steps": [
         {
           "name": "Select",
           "type": "Select",
@@ -98,10 +110,11 @@ completed before the request is matched.
         }
       ]
     }
-  ],
-  "Remove": ["OldScenario"],    // optional names to remove
-  "Clear": false,                // clear all scenarios when true
-  "Current": "MyScenario"       // set current scenario
+    ],
+    "Remove": ["OldScenario"],    // optional names to remove
+    "Clear": false,                // clear all scenarios when true
+    "Current": "MyScenario"       // set current scenario
+  }
 }
 ```
 `Add` and `Remove` accept arrays; `Add` may also be a single scenario object and `Remove` a single name.

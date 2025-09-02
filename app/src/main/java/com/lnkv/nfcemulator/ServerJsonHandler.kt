@@ -11,21 +11,39 @@ import android.util.Log
 object ServerJsonHandler {
     private const val TAG = "ServerJsonHandler"
 
-    fun handle(jsonStr: String) {
+    /**
+     * Parses [jsonStr] and applies the contained commands.
+     * @return true if the communication log was cleared as part of the request.
+     */
+    fun handle(jsonStr: String): Boolean {
         Log.d(TAG, "handle: $jsonStr")
+        var cleared = false
         try {
             val obj = JSONObject(jsonStr)
-            when (obj.optString("Type")) {
-                "Aid" -> handleAid(obj)
-                "Comm" -> handleComm(obj)
-                "Scenarios" -> handleScenarios(obj)
-                "Filters" -> handleFilters(obj)
-                "Reset" -> handleReset()
+
+            val type = obj.optString("Type")
+            if (type.isNotBlank()) {
+                cleared = when (type) {
+                    "Aid" -> { handleAid(obj); false }
+                    "Comm" -> handleComm(obj)
+                    "Scenarios" -> { handleScenarios(obj); false }
+                    "Filters" -> { handleFilters(obj); false }
+                    "Reset" -> { handleReset(); false }
+                    else -> false
+                }
+                return cleared
             }
+
+            obj.optJSONObject("Aid")?.let { handleAid(it) }
+            obj.optJSONObject("Comm")?.let { if (handleComm(it)) cleared = true }
+            obj.optJSONObject("Scenarios")?.let { handleScenarios(it) }
+            obj.optJSONObject("Filters")?.let { handleFilters(it) }
+            if (obj.has("Reset")) handleReset()
         } catch (e: Exception) {
             Log.d(TAG, "parse error: ${e.message}")
             CommunicationLog.add("JSON ERR: ${e.message}", true, false)
         }
+        return cleared
     }
 
     private fun handleAid(obj: JSONObject) {
@@ -116,10 +134,12 @@ object ServerJsonHandler {
         }
     }
 
-    private fun handleComm(obj: JSONObject) {
+    private fun handleComm(obj: JSONObject): Boolean {
+        var cleared = false
         if (obj.optBoolean("Clear", false)) {
             Log.d(TAG, "handleComm: clear log")
             CommunicationLog.clear()
+            cleared = true
         }
         if (obj.optBoolean("Save", false)) {
             try {
@@ -158,6 +178,7 @@ object ServerJsonHandler {
                 ScenarioManager.setCurrent(AppContextHolder.context, null)
             }
         }
+        return cleared
     }
 
     private fun handleScenarios(obj: JSONObject) {

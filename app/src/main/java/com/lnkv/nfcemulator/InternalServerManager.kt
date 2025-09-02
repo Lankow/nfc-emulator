@@ -41,6 +41,7 @@ object InternalServerManager {
                         clients[id] = socket
                         CommunicationLog.add("STATE-INT: Device $id started transmission.", true, true)
                         launch {
+                            var cleared = false
                             try {
                                 val reader = socket.getInputStream().bufferedReader()
                                 val headers = mutableListOf<String>()
@@ -63,7 +64,7 @@ object InternalServerManager {
                                 Log.d(TAG, "request: $body")
                                 if (body.isNotBlank()) {
                                     CommunicationLog.add("POST: $body", true, true)
-                                    ServerJsonHandler.handle(body)
+                                    cleared = ServerJsonHandler.handle(body)
                                 }
                                 try {
                                     socket.getOutputStream().apply {
@@ -76,7 +77,9 @@ object InternalServerManager {
                                 Log.d(TAG, "client error: ${e.message}")
                             } finally {
                                 clients.remove(id)
-                                CommunicationLog.add("STATE-INT: Device $id finished transmission.", true, false)
+                                if (!cleared) {
+                                    CommunicationLog.add("STATE-INT: Device $id finished transmission.", true, false)
+                                }
                                 try { socket.close() } catch (_: Exception) {}
                             }
                         }

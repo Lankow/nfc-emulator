@@ -1,0 +1,20 @@
+{
+  "Aid": {
+    "Clear": true,
+    "Add": ["A0000002471001", "A0000002471002"]
+  },
+  "Scenarios": {
+    "Add": [
+      {
+        "name": "SampleScenario",
+        "aid": "A0000002471001",
+        "steps": [
+          { "name": "Select", "request": "00A4040008A0000002471001", "response": "9000" }
+        ]
+      }
+    ],
+    "Current": "SampleScenario"
+  },
+  "Comm": { "Clear": true },
+  "Filters": { "Add": "A0B1" }
+}

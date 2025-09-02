@@ -1,7 +1,12 @@
 # NFC Type A Emulator – Android App
 
-An Android application for emulating **NFC Type A** cards (ISO 14443-3A / ISO 14443-4A) using compatible devices.
-The app allows developers, researchers, and hobbyists to test NFC readers without requiring the original physical card.
+## About
+NFC Type A Emulator is an Android application for emulating **NFC Type A**
+cards (ISO 14443-3A / ISO 14443-4A) using compatible devices. It lets
+developers, researchers, and hobbyists test NFC readers without requiring the
+original physical card. The app exposes an HTTP API that can be driven from the
+device itself or from the included Node.js external server, and both accept a
+single request containing multiple command groups.
 
 ## Prerequisites
 

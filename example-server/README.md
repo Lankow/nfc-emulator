@@ -23,7 +23,9 @@ variable to change it.
 
 ## Endpoints
 
-All commands are sent as `POST` requests with a JSON body to the root path `/`.
+The app polls the server with `GET /` requests, to which the server responds
+with an empty body. When commands need to be executed, send them as `POST`
+requests with a JSON body to the root path `/`.
 The payload structure matches the [HTTP Control API](../README.md#http-control-api)
 of the app. Multiple command groups may be combined in one payload. Example:
 

@@ -79,6 +79,12 @@ function handleScenarios({ Add, Remove, Clear, Current }) {
   if (Current) console.log(`Set current scenario to ${Current}`);
 }
 
+// Polling endpoint used by the app's ServerConnectionManager. Respond with an
+// empty body so URL.readText() succeeds without generating log entries.
+app.get('/', (_req, res) => {
+  res.status(HTTP_OK).end();
+});
+
 app.listen(PORT, () => {
   console.log(`External server listening on port ${PORT}`);
 });

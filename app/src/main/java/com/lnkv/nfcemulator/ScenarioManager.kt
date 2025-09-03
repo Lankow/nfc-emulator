@@ -58,7 +58,9 @@ object ScenarioManager {
         scenarioAid = scenario?.aid ?: ""
         selectOnce = scenario?.selectOnce ?: false
         resetState()
-        RequestStateTracker.markChanged()
+        if (name != null) {
+            RequestStateTracker.markChanged()
+        }
     }
 
     fun setRunning(running: Boolean) {
@@ -77,7 +79,9 @@ object ScenarioManager {
         } else if (!running) {
             resetState()
         }
-        RequestStateTracker.markChanged()
+        if (running) {
+            RequestStateTracker.markChanged()
+        }
     }
 
     fun toggleSilence() {
@@ -88,7 +92,6 @@ object ScenarioManager {
         } else {
             CommunicationLog.add("STATE-SCEN: $name unsilenced.", true, true)
         }
-        RequestStateTracker.markChanged()
     }
 
     fun addScenario(context: Context, scenario: Scenario) {
@@ -125,7 +128,6 @@ object ScenarioManager {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit().remove(SCENARIO_KEY).apply()
         setCurrent(context, null)
-        RequestStateTracker.markChanged()
     }
 
     fun onDeactivated() {

@@ -47,6 +47,7 @@ object CommunicationLog {
         Log.d(TAG, "clear")
         buffer.clear()
         _entries.value = emptyList()
+        RequestStateTracker.markChanged()
     }
 
     /**

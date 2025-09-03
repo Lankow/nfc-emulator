@@ -58,6 +58,7 @@ object ScenarioManager {
         scenarioAid = scenario?.aid ?: ""
         selectOnce = scenario?.selectOnce ?: false
         resetState()
+        RequestStateTracker.markChanged()
     }
 
     fun setRunning(running: Boolean) {
@@ -76,6 +77,7 @@ object ScenarioManager {
         } else if (!running) {
             resetState()
         }
+        RequestStateTracker.markChanged()
     }
 
     fun toggleSilence() {
@@ -86,6 +88,7 @@ object ScenarioManager {
         } else {
             CommunicationLog.add("STATE-SCEN: $name unsilenced.", true, true)
         }
+        RequestStateTracker.markChanged()
     }
 
     fun addScenario(context: Context, scenario: Scenario) {
@@ -98,9 +101,14 @@ object ScenarioManager {
             .toMutableStateList()
         val sanitized = scenario.copy(steps = uniqueSteps)
         val scenarios = loadAllScenarios(context)
-        scenarios.removeAll { it.name == sanitized.name }
-        scenarios.add(sanitized)
+        val index = scenarios.indexOfFirst { it.name == sanitized.name }
+        if (index >= 0) {
+            scenarios[index] = sanitized
+        } else {
+            scenarios.add(sanitized)
+        }
         saveAllScenarios(context, scenarios)
+        RequestStateTracker.markChanged()
     }
 
     fun removeScenario(context: Context, name: String) {
@@ -110,12 +118,14 @@ object ScenarioManager {
         if (_current.value == name) {
             setCurrent(context, null)
         }
+        RequestStateTracker.markChanged()
     }
 
     fun clearScenarios(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit().remove(SCENARIO_KEY).apply()
         setCurrent(context, null)
+        RequestStateTracker.markChanged()
     }
 
     fun onDeactivated() {

@@ -46,6 +46,7 @@ object AidManager {
         set.add(aid)
         prefs.edit().putStringSet(PREFS_KEY, set).apply()
         registerAids(set.toList())
+        RequestStateTracker.markChanged()
     }
 
     fun remove(aid: String) {
@@ -54,11 +55,13 @@ object AidManager {
         set.remove(aid)
         prefs.edit().putStringSet(PREFS_KEY, set).apply()
         registerAids(set.toList())
+        RequestStateTracker.markChanged()
     }
 
     fun clear() {
         Log.d(TAG, "clear")
         prefs.edit().putStringSet(PREFS_KEY, emptySet()).apply()
         registerAids(emptyList())
+        RequestStateTracker.markChanged()
     }
 }

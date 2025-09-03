@@ -33,6 +33,7 @@ object ServerConnectionManager {
     private var currentPort: Int? = null
     private var pollJob: Job? = null
     private var lastResp: String? = null
+    private var lastVersion: Long = RequestStateTracker.version
 
     fun connect(context: Context, ip: String, port: Int, pollingMs: Long) {
         if (isProcessing) return
@@ -73,17 +74,22 @@ object ServerConnectionManager {
                         if (pollingMs > 0) {
                             pollJob?.cancel()
                             lastResp = null
+                            lastVersion = RequestStateTracker.version
                             pollJob = scope.launch {
                                 while (true) {
                                     try {
                                         val resp = withContext(Dispatchers.IO) {
                                             URL("http://$ip:$port").readText()
                                         }
-                                        if (resp.isNotBlank() && resp != lastResp) {
-                                            CommunicationLog.add("GET RESP: $resp", true, true)
-                                            ServerJsonHandler.handle(resp)
-                                            lastResp = resp
-                                            Log.d(TAG, "poll: $resp")
+                                        if (resp.isNotBlank()) {
+                                            val version = RequestStateTracker.version
+                                            if (resp != lastResp || version != lastVersion) {
+                                                CommunicationLog.add("GET RESP: $resp", true, true)
+                                                ServerJsonHandler.handle(resp)
+                                                lastResp = resp
+                                                lastVersion = RequestStateTracker.version
+                                                Log.d(TAG, "poll: $resp")
+                                            }
                                         }
                                     } catch (e: Exception) {
                                         CommunicationLog.add(
@@ -146,6 +152,7 @@ object ServerConnectionManager {
                 pollJob?.cancel()
                 pollJob = null
                 lastResp = null
+                lastVersion = RequestStateTracker.version
                 state = "Disconnected"
                 isProcessing = false
                 if (ip != null && port != null) {

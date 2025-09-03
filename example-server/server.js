@@ -97,6 +97,13 @@ app.get('/', (_req, res) => {
   res.status(HTTP_OK).json(next);
 });
 
+// Endpoint for the app to clear any queued commands once handled.
+app.delete('/', (_req, res) => {
+  queue.length = 0;
+  console.log('DELETE / -> cleared queued commands');
+  res.status(HTTP_OK).end();
+});
+
 app.listen(PORT, () => {
   console.log(`External server listening on port ${PORT}`);
 });

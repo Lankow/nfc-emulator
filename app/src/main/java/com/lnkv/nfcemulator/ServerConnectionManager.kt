@@ -19,6 +19,7 @@ import java.net.Socket
 import java.net.URL
 import android.util.Log
 import kotlin.math.max
+import java.net.HttpURLConnection
 
 object ServerConnectionManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -89,6 +90,7 @@ object ServerConnectionManager {
                                             lastResp = resp
                                             lastVersion = RequestStateTracker.version
                                             Log.d(TAG, "poll: $resp")
+                                            clearServer(ip, port)
                                         } else if (lastResp != null && version != lastVersion) {
                                             CommunicationLog.add("GET RESP: ${lastResp!!} (replay)", true, true)
                                             ServerJsonHandler.handle(lastResp!!)
@@ -174,6 +176,25 @@ object ServerConnectionManager {
                     )
                     Log.d(TAG, "disconnect")
                 }
+            }
+        }
+    }
+
+    private fun clearServer(ip: String, port: Int) {
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    (URL("http://$ip:$port").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "DELETE"
+                        connectTimeout = 5000
+                        readTimeout = 5000
+                        inputStream.close()
+                    }
+                }
+                Log.d(TAG, "clearServer: success")
+            } catch (e: Exception) {
+                CommunicationLog.add("STATE-EXT: DELETE Error (${e.message}).", true, false)
+                Log.d(TAG, "clearServer error: ${e.message}")
             }
         }
     }

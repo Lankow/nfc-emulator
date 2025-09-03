@@ -58,6 +58,9 @@ object ScenarioManager {
         scenarioAid = scenario?.aid ?: ""
         selectOnce = scenario?.selectOnce ?: false
         resetState()
+        if (name != null) {
+            RequestStateTracker.markChanged()
+        }
     }
 
     fun setRunning(running: Boolean) {
@@ -75,6 +78,9 @@ object ScenarioManager {
             resetState()
         } else if (!running) {
             resetState()
+        }
+        if (running) {
+            RequestStateTracker.markChanged()
         }
     }
 
@@ -98,9 +104,14 @@ object ScenarioManager {
             .toMutableStateList()
         val sanitized = scenario.copy(steps = uniqueSteps)
         val scenarios = loadAllScenarios(context)
-        scenarios.removeAll { it.name == sanitized.name }
-        scenarios.add(sanitized)
+        val index = scenarios.indexOfFirst { it.name == sanitized.name }
+        if (index >= 0) {
+            scenarios[index] = sanitized
+        } else {
+            scenarios.add(sanitized)
+        }
         saveAllScenarios(context, scenarios)
+        RequestStateTracker.markChanged()
     }
 
     fun removeScenario(context: Context, name: String) {
@@ -110,6 +121,7 @@ object ScenarioManager {
         if (_current.value == name) {
             setCurrent(context, null)
         }
+        RequestStateTracker.markChanged()
     }
 
     fun clearScenarios(context: Context) {

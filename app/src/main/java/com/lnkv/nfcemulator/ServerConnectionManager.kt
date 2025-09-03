@@ -18,6 +18,8 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
 import android.util.Log
+import kotlin.math.max
+import java.net.HttpURLConnection
 
 object ServerConnectionManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -33,6 +35,7 @@ object ServerConnectionManager {
     private var currentPort: Int? = null
     private var pollJob: Job? = null
     private var lastResp: String? = null
+    private var lastVersion: Long = RequestStateTracker.version
 
     fun connect(context: Context, ip: String, port: Int, pollingMs: Long) {
         if (isProcessing) return
@@ -73,17 +76,26 @@ object ServerConnectionManager {
                         if (pollingMs > 0) {
                             pollJob?.cancel()
                             lastResp = null
+                            lastVersion = RequestStateTracker.version
                             pollJob = scope.launch {
                                 while (true) {
                                     try {
                                         val resp = withContext(Dispatchers.IO) {
                                             URL("http://$ip:$port").readText()
                                         }
-                                        if (resp.isNotBlank() && resp != lastResp) {
+                                        val version = RequestStateTracker.version
+                                        if (resp.isNotBlank()) {
                                             CommunicationLog.add("GET RESP: $resp", true, true)
                                             ServerJsonHandler.handle(resp)
                                             lastResp = resp
+                                            lastVersion = RequestStateTracker.version
                                             Log.d(TAG, "poll: $resp")
+                                            clearServer(ip, port)
+                                        } else if (lastResp != null && version != lastVersion) {
+                                            CommunicationLog.add("GET RESP: ${lastResp!!} (replay)", true, true)
+                                            ServerJsonHandler.handle(lastResp!!)
+                                            lastVersion = RequestStateTracker.version
+                                            Log.d(TAG, "poll replay: ${lastResp!!}")
                                         }
                                     } catch (e: Exception) {
                                         CommunicationLog.add(
@@ -93,7 +105,7 @@ object ServerConnectionManager {
                                         )
                                         Log.d(TAG, "poll error: ${e.message}")
                                     }
-                                    delay(pollingMs)
+                                    delay(max(pollingMs, 1000L))
                                 }
                             }
                         }
@@ -146,6 +158,7 @@ object ServerConnectionManager {
                 pollJob?.cancel()
                 pollJob = null
                 lastResp = null
+                lastVersion = RequestStateTracker.version
                 state = "Disconnected"
                 isProcessing = false
                 if (ip != null && port != null) {
@@ -163,6 +176,25 @@ object ServerConnectionManager {
                     )
                     Log.d(TAG, "disconnect")
                 }
+            }
+        }
+    }
+
+    private fun clearServer(ip: String, port: Int) {
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    (URL("http://$ip:$port").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "DELETE"
+                        connectTimeout = 5000
+                        readTimeout = 5000
+                        inputStream.close()
+                    }
+                }
+                Log.d(TAG, "clearServer: success")
+            } catch (e: Exception) {
+                CommunicationLog.add("STATE-EXT: DELETE Error (${e.message}).", true, false)
+                Log.d(TAG, "clearServer error: ${e.message}")
             }
         }
     }

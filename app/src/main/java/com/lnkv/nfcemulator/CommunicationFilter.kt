@@ -29,6 +29,7 @@ object CommunicationFilter {
         val newSet = (_filters.value + cleaned).toSet()
         _filters.value = newSet.toList()
         context?.let { save(it, newSet) }
+        RequestStateTracker.markChanged()
     }
 
     /** Removes a [pattern] from the filter set. */
@@ -36,6 +37,7 @@ object CommunicationFilter {
         val newSet = _filters.value.filterNot { it == pattern }.toSet()
         _filters.value = newSet.toList()
         context?.let { save(it, newSet) }
+        RequestStateTracker.markChanged()
     }
 
     /** Replaces an existing [old] pattern with [new]. */
@@ -45,6 +47,7 @@ object CommunicationFilter {
         val newSet = (_filters.value - old + cleaned).toSet()
         _filters.value = newSet.toList()
         context?.let { save(it, newSet) }
+        RequestStateTracker.markChanged()
     }
 
     /** Sets all filters from [list], replacing any existing values. */
@@ -52,12 +55,14 @@ object CommunicationFilter {
         val cleaned = list.map { it.uppercase() }.filter { isValid(it) }.toSet()
         _filters.value = cleaned.toList()
         save(context, cleaned)
+        RequestStateTracker.markChanged()
     }
 
     /** Removes all stored filters. */
     fun clear(context: Context? = null) {
         _filters.value = emptyList()
         context?.let { save(it, emptySet()) }
+        RequestStateTracker.markChanged()
     }
 
     /** Returns true if [message] should be hidden based on current filters. */

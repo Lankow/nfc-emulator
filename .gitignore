@@ -71,3 +71,5 @@ lint/tmp/
 # App Specific cases 
 app/release/output.json
 .idea/codeStyles/
+# Node modules for example server
+example-server/node_modules/

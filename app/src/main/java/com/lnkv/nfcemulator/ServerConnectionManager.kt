@@ -84,13 +84,11 @@ object ServerConnectionManager {
                                         }
                                         val version = RequestStateTracker.version
                                         if (resp.isNotBlank()) {
-                                            if (resp != lastResp || version != lastVersion) {
-                                                CommunicationLog.add("GET RESP: $resp", true, true)
-                                                ServerJsonHandler.handle(resp)
-                                                lastResp = resp
-                                                lastVersion = RequestStateTracker.version
-                                                Log.d(TAG, "poll: $resp")
-                                            }
+                                            CommunicationLog.add("GET RESP: $resp", true, true)
+                                            ServerJsonHandler.handle(resp)
+                                            lastResp = resp
+                                            lastVersion = RequestStateTracker.version
+                                            Log.d(TAG, "poll: $resp")
                                         } else if (lastResp != null && version != lastVersion) {
                                             CommunicationLog.add("GET RESP: ${lastResp!!} (replay)", true, true)
                                             ServerJsonHandler.handle(lastResp!!)

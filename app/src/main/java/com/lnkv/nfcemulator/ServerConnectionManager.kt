@@ -18,6 +18,7 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
 import android.util.Log
+import kotlin.math.max
 
 object ServerConnectionManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -81,8 +82,8 @@ object ServerConnectionManager {
                                         val resp = withContext(Dispatchers.IO) {
                                             URL("http://$ip:$port").readText()
                                         }
+                                        val version = RequestStateTracker.version
                                         if (resp.isNotBlank()) {
-                                            val version = RequestStateTracker.version
                                             if (resp != lastResp || version != lastVersion) {
                                                 CommunicationLog.add("GET RESP: $resp", true, true)
                                                 ServerJsonHandler.handle(resp)
@@ -90,6 +91,11 @@ object ServerConnectionManager {
                                                 lastVersion = RequestStateTracker.version
                                                 Log.d(TAG, "poll: $resp")
                                             }
+                                        } else if (lastResp != null && version != lastVersion) {
+                                            CommunicationLog.add("GET RESP: ${lastResp!!} (replay)", true, true)
+                                            ServerJsonHandler.handle(lastResp!!)
+                                            lastVersion = RequestStateTracker.version
+                                            Log.d(TAG, "poll replay: ${lastResp!!}")
                                         }
                                     } catch (e: Exception) {
                                         CommunicationLog.add(
@@ -99,7 +105,7 @@ object ServerConnectionManager {
                                         )
                                         Log.d(TAG, "poll error: ${e.message}")
                                     }
-                                    delay(pollingMs)
+                                    delay(max(pollingMs, 1000L))
                                 }
                             }
                         }

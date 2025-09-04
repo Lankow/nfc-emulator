@@ -46,5 +46,8 @@ the log all at once:
 
 ```bash
 curl -X POST http://localhost:1818/ -H "Content-Type: application/json" \
-  -d @multi-command-request.json
+-d @multi-command-request.json
 ```
+
+The server also exposes `GET /STATUS` to report the last status value posted by
+the app and `POST /STATUS` for the app to send status updates.

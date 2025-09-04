@@ -11,6 +11,7 @@ app.use(express.json());
 const aids = new Set();
 const scenarios = new Map();
 let logEntries = [];
+let appStatus = 'IDLE';
 
 // Queue of pending commands for the app to fetch via GET /
 const queue = [];
@@ -102,6 +103,22 @@ app.delete('/', (_req, res) => {
   queue.length = 0;
   console.log('DELETE / -> cleared queued commands');
   res.status(HTTP_OK).end();
+});
+
+// Endpoint for reporting and querying app status.
+app.get('/STATUS', (_req, res) => {
+  res.status(HTTP_OK).json({ status: appStatus });
+});
+
+app.post('/STATUS', (req, res) => {
+  const { status } = req.body || {};
+  if (typeof status === 'string') {
+    appStatus = status;
+    console.log('POST /STATUS ->', status);
+    res.status(HTTP_OK).end();
+  } else {
+    res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Missing status' });
+  }
 });
 
 app.listen(PORT, () => {

@@ -37,6 +37,31 @@ object ServerConnectionManager {
     private var lastResp: String? = null
     private var lastVersion: Long = RequestStateTracker.version
 
+    /**
+     * Post status updates to the connected external server when available.
+     */
+    fun postStatus(status: String) {
+        val ip = currentIp
+        val port = currentPort
+        if (state == "Connected" && ip != null && port != null) {
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        (URL("http://$ip:$port/STATUS").openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json")
+                            outputStream.use { it.write("{\"status\":\"$status\"}".toByteArray()) }
+                            inputStream.close()
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "postStatus error: ${e.message}")
+                }
+            }
+        }
+    }
+
     fun connect(context: Context, ip: String, port: Int, pollingMs: Long) {
         if (isProcessing) return
         currentIp = ip

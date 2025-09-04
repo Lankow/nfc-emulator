@@ -38,6 +38,10 @@ logging and scenarios. Enable the server from the **Server** screen and note
 the device's IP address and chosen port. Commands are sent as `POST` requests
 with a JSON body to `http://<DEVICE_IP>:<PORT>/`.
 
+The current application status can be queried with `GET /STATUS`, which
+returns one of `IDLE`, `READY`, `RUNNING`, `FINISHED`, `STOPPED`, `SILENCED`
+or `ERROR`.
+
 ### Command structure
 
 Commands are grouped by top-level keys. A request may include any combination of

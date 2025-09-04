@@ -46,6 +46,9 @@ object ScenarioManager {
         aidToSelect = scenarioAid
         selectOnce = scenario?.selectOnce ?: false
         Log.d(TAG, "load: current=$name steps=${_steps.value.size} aid=$scenarioAid selectOnce=$selectOnce")
+        if (name != null) {
+            AppStatusManager.scenarioLoaded()
+        }
     }
 
     fun setCurrent(context: Context, name: String?) {
@@ -59,7 +62,10 @@ object ScenarioManager {
         selectOnce = scenario?.selectOnce ?: false
         resetState()
         if (name != null) {
+            AppStatusManager.scenarioLoaded()
             RequestStateTracker.markChanged()
+        } else {
+            AppStatusManager.scenarioUnloaded()
         }
     }
 
@@ -73,10 +79,18 @@ object ScenarioManager {
                 val onceText = if (selectOnce) "Yes" else "No"
                 CommunicationLog.add("AID to Select: $scenarioAid (Select once: $onceText)", true)
             }
+            AppStatusManager.scenarioRunning()
         } else if (!running && name != null) {
+            val finished = _steps.value.isNotEmpty() && stepIndex >= _steps.value.size
             CommunicationLog.add("STATE-SCEN: Scenario '$name' stopped.", true, false)
+            if (finished) {
+                AppStatusManager.scenarioFinished()
+            } else {
+                AppStatusManager.scenarioStopped()
+            }
             resetState()
         } else if (!running) {
+            AppStatusManager.scenarioStopped()
             resetState()
         }
         if (running) {
@@ -89,8 +103,10 @@ object ScenarioManager {
         val name = _current.value?.let { "Scenario '$it'" } ?: "Scenario"
         if (_silenced.value) {
             CommunicationLog.add("STATE-SCEN: $name silenced.", true, false)
+            AppStatusManager.silenced(true)
         } else {
             CommunicationLog.add("STATE-SCEN: $name unsilenced.", true, true)
+            AppStatusManager.silenced(false)
         }
     }
 
@@ -153,7 +169,15 @@ object ScenarioManager {
         val step = _steps.value.getOrNull(stepIndex)
         if (step != null && apduHex.equals(step.request, true)) {
             stepIndex++
-            return hexToBytes(step.response)
+            val response = hexToBytes(step.response)
+            if (stepIndex >= _steps.value.size) {
+                CommunicationLog.add("STATE-SCEN: Scenario '${_current.value}' finished.", true, true)
+                AppStatusManager.scenarioFinished()
+                _running.value = false
+                resetState()
+                RequestStateTracker.markChanged()
+            }
+            return response
         }
         return SUCCESS
     }

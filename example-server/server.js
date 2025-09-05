@@ -1,4 +1,7 @@
 const express = require('express');
+const { handleAid } = require('./handlers/aid');
+const { handleComm } = require('./handlers/comm');
+const { handleScenarios } = require('./handlers/scenarios');
 
 const HTTP_OK = 200;
 const HTTP_INTERNAL_SERVER_ERROR = 500;
@@ -26,22 +29,22 @@ app.post('/', async (req, res) => {
     if (data.Type) {
       switch (data.Type) {
         case 'Aid':
-          handleAid(data);
+          handleAid(aids, data);
           return res.status(HTTP_OK).json({ queued: queue.length, aids: Array.from(aids) });
         case 'Comm':
-          handleComm(data);
+          handleComm(logEntries, data);
           return res.status(HTTP_OK).json({ queued: queue.length, logLength: logEntries.length });
         case 'Scenarios':
-          handleScenarios(data);
+          handleScenarios(scenarios, data);
           return res.status(HTTP_OK).json({ queued: queue.length, scenarios: Array.from(scenarios.keys()) });
         default:
           return res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Unknown Type' });
       }
     }
 
-    if (data.Aid) handleAid(data.Aid);
-    if (data.Comm) handleComm(data.Comm);
-    if (data.Scenarios) handleScenarios(data.Scenarios);
+    if (data.Aid) handleAid(aids, data.Aid);
+    if (data.Comm) handleComm(logEntries, data.Comm);
+    if (data.Scenarios) handleScenarios(scenarios, data.Scenarios);
 
     return res.status(HTTP_OK).json({
       queued: queue.length,
@@ -54,38 +57,6 @@ app.post('/', async (req, res) => {
     res.status(HTTP_INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
   }
 });
-
-function handleAid({ Add, Remove, Clear }) {
-  if (Clear) aids.clear();
-  if (Add) {
-    const list = Array.isArray(Add) ? Add : [Add];
-    list.forEach(aid => aids.add(aid));
-  }
-  if (Remove) {
-    const list = Array.isArray(Remove) ? Remove : [Remove];
-    list.forEach(aid => aids.delete(aid));
-  }
-}
-
-function handleComm({ Clear, Save, Mute, CurrentScenario }) {
-  if (Clear) logEntries = [];
-  if (Save) console.log('Saving log', logEntries);
-  if (typeof Mute === 'boolean') console.log(`Communication ${Mute ? 'muted' : 'unmuted'}`);
-  if (CurrentScenario) console.log(`Current scenario: ${CurrentScenario}`);
-}
-
-function handleScenarios({ Add, Remove, Clear, Current }) {
-  if (Clear) scenarios.clear();
-  if (Add) {
-    const list = Array.isArray(Add) ? Add : [Add];
-    list.forEach(sc => scenarios.set(sc.name, sc));
-  }
-  if (Remove) {
-    const list = Array.isArray(Remove) ? Remove : [Remove];
-    list.forEach(name => scenarios.delete(name));
-  }
-  if (Current) console.log(`Set current scenario to ${Current}`);
-}
 
 // Polling endpoint used by the app's ServerConnectionManager.
 app.get('/', (_req, res) => {

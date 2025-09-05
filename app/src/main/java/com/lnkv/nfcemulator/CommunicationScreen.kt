@@ -266,7 +266,7 @@ private fun FilterScreen() {
     ) { uri ->
         if (uri != null) {
             val imported = importFilters(context, uri)
-            CommunicationFilter.setFilters(imported)
+            CommunicationFilter.setAll(imported, context)
             Toast.makeText(context, "${imported.size} item(s) have been imported.", Toast.LENGTH_SHORT).show()
         }
     }
@@ -341,7 +341,7 @@ private fun FilterScreen() {
                     if (editingIndex == null) {
                         CommunicationFilter.add(editInput)
                     } else {
-                        CommunicationFilter.update(editingIndex!!, editInput)
+                        CommunicationFilter.replace(filters[editingIndex!!], editInput)
                     }
                     editingIndex = null
                     editInput = ""

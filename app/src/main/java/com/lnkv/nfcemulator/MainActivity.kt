@@ -4,7 +4,6 @@ package com.lnkv.nfcemulator
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.net.wifi.WifiManager
 import android.nfc.NfcAdapter
@@ -48,6 +47,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.FileDownload
@@ -57,6 +57,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
@@ -108,7 +109,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.AnnotatedString
 import android.content.res.ColorStateList
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetAddress
@@ -181,6 +181,7 @@ class MainActivity : ComponentActivity() {
 
         ScenarioManager.load(this)
         CommunicationFilter.load(this)
+        CommunicationLog.init(applicationContext)
         Log.d(TAG, "initialization complete")
 
         setContent {
@@ -590,51 +591,13 @@ fun CommunicationScreen(
     var showServer by rememberSaveable { mutableStateOf(true) }
     var showNfc by rememberSaveable { mutableStateOf(true) }
     var showFilterScreen by remember { mutableStateOf(false) }
+    var showLogsScreen by remember { mutableStateOf(false) }
     val filters by CommunicationFilter.filters.collectAsState()
     val filteredEntries = remember(entries, filters) {
         entries.filterNot { CommunicationFilter.shouldHide(it.message) }
     }
     val serverEntries = filteredEntries.filter { it.isServer }
     val nfcEntries = filteredEntries.filter { !it.isServer }
-    val context = LocalContext.current
-    var pendingSave by remember { mutableStateOf<Pair<String, List<CommunicationLog.Entry>>?>(null) }
-    val saveLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        val pending = pendingSave
-        if (uri != null && pending != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: SecurityException) {
-            }
-            val directory = DocumentFile.fromTreeUri(context, uri)
-            if (directory != null) {
-                val file = directory.createFile("text/plain", pending.first)
-                if (file != null) {
-                    try {
-                        context.contentResolver.openOutputStream(file.uri)?.use { stream ->
-                            CommunicationLog.saveToStream(stream, pending.second)
-                        }
-                        Toast.makeText(context, "Logs stored to file ${pending.first}", Toast.LENGTH_SHORT).show()
-                    } catch (e: Exception) {
-                        Toast.makeText(
-                            context,
-                            "Failed to save logs: ${e.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                } else {
-                    Toast.makeText(context, "Unable to create log file", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(context, "Unable to access selected folder", Toast.LENGTH_SHORT).show()
-            }
-        }
-        pendingSave = null
-    }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         MultiChoiceSegmentedButtonRow(
             modifier = Modifier
@@ -744,20 +707,28 @@ fun CommunicationScreen(
         ) {
             Button(
                 onClick = {
-                    val scenarioName = (currentScenario ?: "log").replace(" ", "_")
-                    val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS", java.util.Locale.getDefault()).format(java.util.Date())
-                    val fileName = "${scenarioName}_${timestamp}.log"
-                    pendingSave = fileName to filteredEntries.toList()
-                    saveLauncher.launch(null)
+                    showLogsScreen = !showLogsScreen
+                    if (showLogsScreen) {
+                        showFilterScreen = false
+                    }
                 },
-                modifier = Modifier.weight(1f).testTag("SaveButton")
+                modifier = Modifier.weight(1f).testTag("LogsButton"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (showLogsScreen) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary,
+                    contentColor = if (showLogsScreen) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                Icon(Icons.Filled.FileDownload, contentDescription = "Save")
+                Icon(Icons.Filled.FileDownload, contentDescription = "Logs")
                 Spacer(Modifier.width(4.dp))
-                Text("Save")
+                Text("Logs")
             }
             Button(
-                onClick = { showFilterScreen = !showFilterScreen },
+                onClick = {
+                    showFilterScreen = !showFilterScreen
+                    if (showFilterScreen) {
+                        showLogsScreen = false
+                    }
+                },
                 modifier = Modifier.weight(1f).testTag("FilterButton"),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (showFilterScreen) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary,
@@ -778,6 +749,13 @@ fun CommunicationScreen(
             }
         }
 
+        if (showLogsScreen) {
+            BackHandler { showLogsScreen = false }
+            LogsScreen(
+                entries = filteredEntries,
+                currentScenario = currentScenario
+            )
+        }
         if (showFilterScreen) {
             BackHandler { showFilterScreen = false }
             FilterScreen()
@@ -1863,6 +1841,95 @@ private fun CommunicationLogList(
                     Text("[$time] ${entry.message}", color = color)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LogsScreen(
+    entries: List<CommunicationLog.Entry>,
+    currentScenario: String?
+) {
+    val context = LocalContext.current
+    val logPath by CommunicationLog.logPath.collectAsState()
+    val maxStorage by CommunicationLog.maxStorageMb.collectAsState()
+    var storageText by remember { mutableStateOf(maxStorage.toString()) }
+
+    LaunchedEffect(maxStorage) {
+        val value = maxStorage.toString()
+        if (storageText != value) {
+            storageText = value
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Logs", style = MaterialTheme.typography.titleLarge)
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = storageText,
+                onValueChange = { newValue ->
+                    if (newValue.isEmpty()) {
+                        storageText = "0"
+                        CommunicationLog.setMaxStorageMb(0)
+                    } else if (newValue.length <= 3 && newValue.all { it.isDigit() }) {
+                        val parsed = newValue.toInt().coerceIn(0, 100)
+                        storageText = parsed.toString()
+                        CommunicationLog.setMaxStorageMb(parsed)
+                    }
+                },
+                label = { Text("Logs Max Storage [Mb]") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                IconButton(
+                    onClick = { CommunicationLog.setMaxStorageMb((maxStorage + 1).coerceAtMost(100)) },
+                    enabled = maxStorage < 100
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Increase storage")
+                }
+                IconButton(
+                    onClick = { CommunicationLog.setMaxStorageMb((maxStorage - 1).coerceAtLeast(0)) },
+                    enabled = maxStorage > 0
+                ) {
+                    Icon(Icons.Filled.Remove, contentDescription = "Decrease storage")
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = logPath,
+            onValueChange = { CommunicationLog.setLogPath(it) },
+            label = { Text("Path") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Logs directory: ${CommunicationLog.getResolvedLogDirectoryPath(context)}",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = {
+                try {
+                    val file = CommunicationLog.saveToConfiguredLocation(currentScenario, entries, context)
+                    Toast.makeText(context, "Logs stored to file ${file.name}", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Failed to save logs: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().testTag("LogsSaveButton")
+        ) {
+            Icon(Icons.Filled.FileDownload, contentDescription = "Save Logs")
+            Spacer(Modifier.width(4.dp))
+            Text("Save Logs")
         }
     }
 }

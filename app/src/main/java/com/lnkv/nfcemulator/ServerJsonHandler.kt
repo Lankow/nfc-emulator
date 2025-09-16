@@ -2,10 +2,6 @@ package com.lnkv.nfcemulator
 
 import androidx.compose.runtime.toMutableStateList
 import org.json.JSONObject
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import android.util.Log
 
 object ServerJsonHandler {
@@ -142,60 +138,10 @@ object ServerJsonHandler {
             cleared = true
         }
 
-        obj.opt("Save")?.let { saveVal ->
-            val scenario = ScenarioManager.current.value ?: "NoScenario"
-            val formatter = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault())
-            val fileName = "${scenario}_${formatter.format(Date())}.log"
+        obj.optJSONObject("Logs")?.let { handleLogSettings(it) }
 
-            fun saveToDirectory(dir: File) {
-                val target = File(dir, fileName)
-                CommunicationLog.saveToFile(target)
-                CommunicationLog.add("STATE-COMM: Log saved ${target.absolutePath}", true, true)
-                Log.d(TAG, "handleComm: saved ${target.absolutePath}")
-            }
-
-            fun handleCustomPath(path: String) {
-                if (path.isBlank()) return
-                try {
-                    val dir = File(path)
-                    if (!dir.exists() && !dir.mkdirs()) {
-                        throw IllegalStateException("Cannot create directory")
-                    }
-                    saveToDirectory(dir)
-                } catch (e: Exception) {
-                    Log.d(TAG, "handleComm custom save error: ${e.message}")
-                    CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
-                }
-            }
-
-            when (saveVal) {
-                is Boolean -> if (saveVal) {
-                    try {
-                        val context = AppContextHolder.context
-                        val dir = context.getExternalFilesDir(null) ?: context.filesDir
-                        saveToDirectory(dir)
-                    } catch (e: Exception) {
-                        Log.d(TAG, "handleComm save error: ${e.message}")
-                        CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
-                    }
-                }
-                is String -> handleCustomPath(saveVal)
-                is JSONObject -> {
-                    val path = saveVal.optString("Path", saveVal.optString("path"))
-                    if (path.isNotBlank()) {
-                        handleCustomPath(path)
-                    } else if (saveVal.optBoolean("Enabled", false)) {
-                        try {
-                            val context = AppContextHolder.context
-                            val dir = context.getExternalFilesDir(null) ?: context.filesDir
-                            saveToDirectory(dir)
-                        } catch (e: Exception) {
-                            Log.d(TAG, "handleComm save error: ${e.message}")
-                            CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
-                        }
-                    }
-                }
-            }
+        if (obj.has("Save")) {
+            handleSaveRequest(obj.opt("Save"))
         }
         if (obj.has("Mute")) {
             val mute = obj.optBoolean("Mute")
@@ -222,6 +168,95 @@ object ServerJsonHandler {
             }
         }
         return cleared
+    }
+
+    private fun handleLogSettings(obj: JSONObject) {
+        val path = obj.optString("Path", obj.optString("path"))
+        if (path.isNotBlank()) {
+            updateLogPath(path)
+        }
+        extractMaxStorageMb(obj)?.let { updateMaxStorage(it) }
+        if (obj.has("Save") || obj.has("save")) {
+            handleSaveRequest(obj.opt("Save") ?: obj.opt("save"))
+        }
+    }
+
+    private fun handleSaveRequest(request: Any?) {
+        when (request) {
+            null, JSONObject.NULL -> return
+            is Boolean -> if (request) performLogSave()
+            is String -> {
+                updateLogPath(request)
+                performLogSave()
+            }
+            is JSONObject -> handleSaveObject(request)
+        }
+    }
+
+    private fun handleSaveObject(obj: JSONObject) {
+        val path = obj.optString("Path", obj.optString("path"))
+        val hasPath = path.isNotBlank()
+        if (hasPath) {
+            updateLogPath(path)
+        }
+        extractMaxStorageMb(obj)?.let { updateMaxStorage(it) }
+        val nestedSave = obj.opt("Save") ?: obj.opt("save")
+        val shouldSave = when {
+            obj.has("Enabled") -> obj.optBoolean("Enabled")
+            nestedSave is Boolean -> nestedSave
+            hasPath -> true
+            else -> false
+        }
+        if (shouldSave) {
+            performLogSave()
+        }
+    }
+
+    private fun updateLogPath(rawPath: String) {
+        val previous = CommunicationLog.logPath.value
+        val sanitized = CommunicationLog.setLogPath(rawPath)
+        if (sanitized != previous) {
+            val directory = CommunicationLog.getResolvedLogDirectoryPath()
+            CommunicationLog.add("STATE-COMM: Log directory $directory", true, true)
+            Log.d(TAG, "handleComm: log path -> $directory (input=$rawPath)")
+        }
+    }
+
+    private fun updateMaxStorage(value: Int) {
+        val previous = CommunicationLog.maxStorageMb.value
+        val applied = CommunicationLog.setMaxStorageMb(value)
+        if (applied != previous) {
+            CommunicationLog.add("STATE-COMM: Log storage limit ${applied}MB", true, true)
+            Log.d(TAG, "handleComm: log maxStorage -> ${applied}MB")
+        }
+    }
+
+    private fun extractMaxStorageMb(obj: JSONObject): Int? {
+        val key = when {
+            obj.has("MaxStorageMb") -> "MaxStorageMb"
+            obj.has("maxStorageMb") -> "maxStorageMb"
+            else -> return null
+        }
+        val raw = obj.opt(key)
+        val value = when (raw) {
+            is Number -> raw.toInt()
+            is String -> raw.toIntOrNull()
+            else -> null
+        }
+        return value?.coerceIn(0, 100)
+    }
+
+    private fun performLogSave() {
+        try {
+            val scenario = ScenarioManager.current.value
+            val entries = CommunicationLog.entries.value
+            val file = CommunicationLog.saveToConfiguredLocation(scenario, entries)
+            CommunicationLog.add("STATE-COMM: Log saved ${file.absolutePath}", true, true)
+            Log.d(TAG, "handleComm: saved ${file.absolutePath}")
+        } catch (e: Exception) {
+            Log.d(TAG, "handleComm save error: ${e.message}")
+            CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
+        }
     }
 
     private fun handleScenarios(obj: JSONObject) {

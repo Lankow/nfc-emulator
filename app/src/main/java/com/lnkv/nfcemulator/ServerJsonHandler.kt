@@ -213,8 +213,15 @@ object ServerJsonHandler {
     }
 
     private fun updateLogPath(rawPath: String) {
+        val validation = CommunicationLog.validatePath(rawPath)
+        if (!validation.isValid) {
+            val reason = validation.errorMessage ?: "Invalid path"
+            CommunicationLog.add("STATE-COMM: Invalid log path ($rawPath): $reason", true, false)
+            Log.d(TAG, "handleComm: invalid log path input=$rawPath reason=$reason")
+            return
+        }
         val previous = CommunicationLog.logPath.value
-        val sanitized = CommunicationLog.setLogPath(rawPath)
+        val sanitized = CommunicationLog.setLogPath(validation.sanitized)
         if (sanitized != previous) {
             val directory = CommunicationLog.getResolvedLogDirectoryPath()
             CommunicationLog.add("STATE-COMM: Log directory $directory", true, true)

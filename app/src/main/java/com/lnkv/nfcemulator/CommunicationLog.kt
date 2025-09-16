@@ -23,12 +23,19 @@ object CommunicationLog {
     private const val KEY_MAX_STORAGE_MB = "max_storage_mb"
     private const val DEFAULT_MAX_STORAGE_MB = 10
     private const val LOGS_DIRECTORY = "logs"
+    private val PATH_SEGMENT_PATTERN = Regex("^[A-Za-z0-9._-]+$")
 
     data class Entry(
         val message: String,
         val isServer: Boolean,
         val isSuccess: Boolean? = null,
         val timestamp: Long = System.currentTimeMillis()
+    )
+
+    data class PathValidationResult(
+        val sanitized: String,
+        val isValid: Boolean,
+        val errorMessage: String? = null
     )
 
     private val buffer = ArrayDeque<Entry>()
@@ -72,7 +79,13 @@ object CommunicationLog {
     fun init(context: Context) {
         if (initialized) return
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _logPath.value = sanitizePath(prefs.getString(KEY_PATH, "") ?: "")
+        val storedPath = prefs.getString(KEY_PATH, "") ?: ""
+        val validation = validatePath(storedPath)
+        _logPath.value = if (validation.isValid) {
+            validation.sanitized
+        } else {
+            ""
+        }
         _maxStorageMb.value = prefs.getInt(KEY_MAX_STORAGE_MB, DEFAULT_MAX_STORAGE_MB)
             .coerceIn(0, 100)
         initialized = true
@@ -80,12 +93,15 @@ object CommunicationLog {
 
     fun setLogPath(rawPath: String, context: Context = AppContextHolder.context): String {
         ensureInitialized(context)
-        val sanitized = sanitizePath(rawPath)
-        if (_logPath.value != sanitized) {
-            _logPath.value = sanitized
-            prefs.edit().putString(KEY_PATH, sanitized).apply()
+        val result = validatePath(rawPath)
+        if (!result.isValid) {
+            return _logPath.value
         }
-        return sanitized
+        if (_logPath.value != result.sanitized) {
+            _logPath.value = result.sanitized
+            prefs.edit().putString(KEY_PATH, result.sanitized).apply()
+        }
+        return result.sanitized
     }
 
     fun setMaxStorageMb(value: Int, context: Context = AppContextHolder.context): Int {
@@ -168,21 +184,52 @@ object CommunicationLog {
         return getResolvedLogDirectory(context).absolutePath
     }
 
+    fun validatePath(rawPath: String): PathValidationResult {
+        if (rawPath.isEmpty()) {
+            return PathValidationResult("", true, null)
+        }
+        if (rawPath.isBlank()) {
+            return PathValidationResult("", false, "Path must contain at least one valid segment.")
+        }
+        val rawSegments = rawPath.split('/', '\\').toMutableList()
+        while (rawSegments.isNotEmpty() && rawSegments.last().isEmpty()) {
+            rawSegments.removeAt(rawSegments.lastIndex)
+        }
+        if (rawSegments.isEmpty()) {
+            return PathValidationResult("", false, "Path must contain at least one valid segment.")
+        }
+        val normalized = mutableListOf<String>()
+        for (segment in rawSegments) {
+            val trimmed = segment.trim()
+            if (trimmed.isEmpty()) {
+                return PathValidationResult("", false, "Path segments cannot be empty.")
+            }
+            if (segment != trimmed) {
+                return PathValidationResult("", false, "Path segments cannot start or end with spaces.")
+            }
+            if (trimmed == "." || trimmed == "..") {
+                return PathValidationResult("", false, "Path segments cannot be '.' or '..'.")
+            }
+            if (!PATH_SEGMENT_PATTERN.matches(trimmed)) {
+                return PathValidationResult(
+                    "",
+                    false,
+                    "Path can only include letters, numbers, dots, underscores, and hyphens."
+                )
+            }
+            normalized += trimmed
+        }
+        return PathValidationResult(
+            sanitized = normalized.joinToString(File.separator),
+            isValid = true,
+            errorMessage = null
+        )
+    }
+
     private fun ensureInitialized(context: Context) {
         if (!initialized) {
             init(context)
         }
-    }
-
-    private fun sanitizePath(raw: String): String {
-        if (raw.isBlank()) return ""
-        return raw
-            .split('/', '\\')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && it != "." && it != ".." }
-            .map { segment -> segment.replace(Regex("[^A-Za-z0-9._-]"), "") }
-            .filter { it.isNotEmpty() }
-            .joinToString(File.separator)
     }
 
     private fun enforceStorageLimit(root: File, maxStorageMb: Int) {

@@ -97,6 +97,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
@@ -1854,61 +1855,141 @@ private fun LogsScreen(
     val logPath by CommunicationLog.logPath.collectAsState()
     val maxStorage by CommunicationLog.maxStorageMb.collectAsState()
     var storageText by remember { mutableStateOf(maxStorage.toString()) }
+    var lastValidStorage by remember { mutableStateOf(maxStorage) }
+    var pathText by remember { mutableStateOf(logPath) }
+    var lastCommittedPath by remember { mutableStateOf(logPath) }
+    var alertMessage by remember { mutableStateOf<String?>(null) }
+    var pathHasFocus by remember { mutableStateOf(false) }
 
     LaunchedEffect(maxStorage) {
         val value = maxStorage.toString()
         if (storageText != value) {
             storageText = value
         }
+        lastValidStorage = maxStorage
+    }
+
+    LaunchedEffect(logPath) {
+        lastCommittedPath = logPath
+        if (!pathHasFocus && pathText != logPath) {
+            pathText = logPath
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Logs", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = storageText,
-                onValueChange = { newValue ->
-                    if (newValue.isEmpty()) {
-                        storageText = "0"
-                        CommunicationLog.setMaxStorageMb(0)
-                    } else if (newValue.length <= 3 && newValue.all { it.isDigit() }) {
-                        val parsed = newValue.toInt().coerceIn(0, 100)
-                        storageText = parsed.toString()
-                        CommunicationLog.setMaxStorageMb(parsed)
-                    }
-                },
-                label = { Text("Logs Max Storage [Mb]") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                IconButton(
-                    onClick = { CommunicationLog.setMaxStorageMb((maxStorage + 1).coerceAtMost(100)) },
-                    enabled = maxStorage < 100
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Increase storage")
-                }
-                IconButton(
-                    onClick = { CommunicationLog.setMaxStorageMb((maxStorage - 1).coerceAtLeast(0)) },
-                    enabled = maxStorage > 0
-                ) {
-                    Icon(Icons.Filled.Remove, contentDescription = "Decrease storage")
-                }
-            }
-        }
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
-            value = logPath,
-            onValueChange = { CommunicationLog.setLogPath(it) },
+            value = storageText,
+            onValueChange = { newValue ->
+                when {
+                    newValue.isEmpty() -> {
+                        storageText = ""
+                    }
+                    newValue.length > 3 -> {
+                        alertMessage = "Logs Max Storage must be between 0 and 100."
+                    }
+                    newValue.all { it.isDigit() } -> {
+                        val parsed = newValue.toInt()
+                        if (parsed in 0..100) {
+                            storageText = newValue
+                            lastValidStorage = parsed
+                            CommunicationLog.setMaxStorageMb(parsed)
+                        } else {
+                            alertMessage = "Logs Max Storage must be between 0 and 100."
+                        }
+                    }
+                    else -> {
+                        alertMessage = "Logs Max Storage accepts digits only."
+                    }
+                }
+            },
+            label = { Text("Logs Max Storage [Mb]") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { state ->
+                    if (!state.isFocused) {
+                        if (storageText.isBlank()) {
+                            val applied = CommunicationLog.setMaxStorageMb(0)
+                            storageText = applied.toString()
+                            lastValidStorage = applied
+                        } else {
+                            val parsed = storageText.toIntOrNull()
+                            if (parsed == null || parsed !in 0..100) {
+                                alertMessage = "Logs Max Storage must be between 0 and 100."
+                                storageText = lastValidStorage.toString()
+                            } else {
+                                storageText = parsed.toString()
+                                lastValidStorage = parsed
+                            }
+                        }
+                    }
+                }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = pathText,
+            onValueChange = { newValue ->
+                if (newValue.isEmpty()) {
+                    pathText = ""
+                    val applied = CommunicationLog.setLogPath("")
+                    lastCommittedPath = applied
+                    return@OutlinedTextField
+                }
+
+                val endsWithSeparator = newValue.lastOrNull()?.let { it == '/' || it == '\\' } ?: false
+                val trimmedForValidation = newValue.trimEnd('/', '\\')
+                if (trimmedForValidation.isEmpty()) {
+                    alertMessage = "Path must contain at least one valid segment."
+                    pathText = lastCommittedPath
+                    return@OutlinedTextField
+                }
+
+                val segments = newValue.split('/', '\\')
+                val segmentsToCheck = if (endsWithSeparator) segments.dropLast(1) else segments
+                var invalidSegmentMessage: String? = null
+                for (segment in segmentsToCheck) {
+                    val trimmed = segment.trim()
+                    invalidSegmentMessage = when {
+                        trimmed.isEmpty() -> "Path segments cannot be empty."
+                        segment != trimmed -> "Path segments cannot start or end with spaces."
+                        trimmed == "." || trimmed == ".." -> "Path segments cannot be '.' or '..'."
+                        else -> null
+                    }
+                    if (invalidSegmentMessage != null) break
+                }
+
+                if (invalidSegmentMessage != null) {
+                    alertMessage = invalidSegmentMessage
+                    pathText = lastCommittedPath
+                    return@OutlinedTextField
+                }
+
+                val validation = CommunicationLog.validatePath(trimmedForValidation)
+                if (!validation.isValid) {
+                    alertMessage = validation.errorMessage ?: "Invalid path."
+                    pathText = lastCommittedPath
+                    return@OutlinedTextField
+                }
+
+                pathText = if (endsWithSeparator) newValue else validation.sanitized
+                val applied = CommunicationLog.setLogPath(validation.sanitized)
+                lastCommittedPath = applied
+            },
             label = { Text("Path") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { state ->
+                    pathHasFocus = state.isFocused
+                    if (!state.isFocused) {
+                        pathText = CommunicationLog.logPath.value
+                    }
+                }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -1931,6 +2012,16 @@ private fun LogsScreen(
             Spacer(Modifier.width(4.dp))
             Text("Save Logs")
         }
+    }
+
+    alertMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { alertMessage = null },
+            confirmButton = {
+                TextButton(onClick = { alertMessage = null }) { Text("OK") }
+            },
+            text = { Text(message) }
+        )
     }
 }
 

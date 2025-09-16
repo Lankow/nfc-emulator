@@ -12,6 +12,10 @@ const aids = new Set();
 const scenarios = new Map();
 let logEntries = [];
 let appStatus = 'IDLE';
+const logSettings = {
+  path: '',
+  maxStorageMb: 10,
+};
 
 // Queue of pending commands for the app to fetch via GET /
 const queue = [];
@@ -67,11 +71,63 @@ function handleAid({ Add, Remove, Clear }) {
   }
 }
 
-function handleComm({ Clear, Save, Mute, CurrentScenario }) {
+function handleComm({ Clear, Save, Mute, CurrentScenario, Logs }) {
   if (Clear) logEntries = [];
-  if (Save) console.log('Saving log', logEntries);
+  if (Logs) applyLogSettings(Logs);
+  if (Save) handleSaveRequest(Save);
   if (typeof Mute === 'boolean') console.log(`Communication ${Mute ? 'muted' : 'unmuted'}`);
   if (CurrentScenario) console.log(`Current scenario: ${CurrentScenario}`);
+}
+
+function applyLogSettings(settings) {
+  if (typeof settings !== 'object' || settings === null) return;
+  const path = settings.Path ?? settings.path;
+  if (typeof path === 'string') {
+    logSettings.path = path.trim();
+    console.log(`Updated log path to '${logSettings.path || '/'}'`);
+  }
+
+  const limitRaw = settings.MaxStorageMb ?? settings.maxStorageMb;
+  if (limitRaw !== undefined) {
+    const parsed = Number(limitRaw);
+    if (!Number.isNaN(parsed)) {
+      const limit = Math.max(0, Math.min(100, Math.round(parsed)));
+      logSettings.maxStorageMb = limit;
+      console.log(`Updated log max storage to ${limit} MB`);
+    }
+  }
+
+  const save = settings.Save ?? settings.save;
+  if (save) {
+    handleSaveRequest(save);
+  }
+}
+
+function handleSaveRequest(save) {
+  if (!save) return;
+  if (typeof save === 'string') {
+    logSettings.path = save.trim();
+  } else if (typeof save === 'object') {
+    if (typeof save.Path === 'string' || typeof save.path === 'string') {
+      logSettings.path = (save.Path ?? save.path).trim();
+    }
+    const limitRaw = save.MaxStorageMb ?? save.maxStorageMb;
+    if (limitRaw !== undefined) {
+      const parsed = Number(limitRaw);
+      if (!Number.isNaN(parsed)) {
+        logSettings.maxStorageMb = Math.max(0, Math.min(100, Math.round(parsed)));
+      }
+    }
+    if (save.Enabled === false || save.enabled === false) {
+      console.log('Skip log save (disabled by server command)');
+      return;
+    }
+  }
+  console.log('Saving log with settings', {
+    path: logSettings.path || '/',
+    maxStorageMb: logSettings.maxStorageMb,
+    entries: logEntries,
+  });
 }
 
 function handleScenarios({ Add, Remove, Clear, Current }) {
@@ -108,6 +164,17 @@ app.delete('/', (_req, res) => {
 // Endpoint for reporting and querying app status.
 app.get('/STATUS', (_req, res) => {
   res.status(HTTP_OK).json({ status: appStatus });
+});
+
+app.get('/app', (_req, res) => {
+  console.log('GET /app -> NFC-EMULATOR');
+  res.status(HTTP_OK).send('NFC-EMULATOR');
+});
+
+app.get('/timestamp', (_req, res) => {
+  const now = Date.now().toString();
+  console.log(`GET /timestamp -> ${now}`);
+  res.status(HTTP_OK).send(now);
 });
 
 app.post('/STATUS', (req, res) => {

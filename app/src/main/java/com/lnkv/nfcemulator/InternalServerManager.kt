@@ -43,46 +43,78 @@ object InternalServerManager {
                         launch {
                             var cleared = false
                             try {
-                        val reader = socket.getInputStream().bufferedReader()
-                        val requestLine = reader.readLine() ?: ""
-                        val parts = requestLine.split(" ")
-                        val method = parts.getOrElse(0) { "" }
-                        val path = parts.getOrElse(1) { "/" }
-                        val headers = mutableListOf<String>()
-                        while (true) {
-                            val line = reader.readLine() ?: break
-                            if (line.isEmpty()) break
-                            headers.add(line)
-                        }
-                        val contentLength = headers.firstOrNull {
-                            it.startsWith("Content-Length", ignoreCase = true)
-                        }?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
-                        if (method.equals("GET", true) && path.equals("/STATUS", true)) {
-                            val status = AppStatusManager.current
-                            val resp = "HTTP/1.1 200 OK\r\nContent-Length: ${status.length}\r\n\r\n$status"
-                            try { socket.getOutputStream().apply { write(resp.toByteArray()); flush() } } catch (_: Exception) {}
-                        } else if (method.equals("POST", true)) {
-                            val bodyChars = CharArray(contentLength)
-                            var read = 0
-                            while (read < contentLength) {
-                                val r = reader.read(bodyChars, read, contentLength - read)
-                                if (r == -1) break
-                                read += r
-                            }
-                            val body = String(bodyChars, 0, read)
-                            Log.d(TAG, "request: $body")
-                            if (body.isNotBlank()) {
-                                CommunicationLog.add("POST: $body", true, true)
-                                cleared = ServerJsonHandler.handle(body)
-                            }
-                            try {
-                                socket.getOutputStream().apply {
-                                    write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK".toByteArray())
-                                    flush()
+                                val reader = socket.getInputStream().bufferedReader()
+                                val requestLine = reader.readLine() ?: ""
+                                val parts = requestLine.split(" ")
+                                val method = parts.getOrElse(0) { "" }
+                                val path = parts.getOrElse(1) { "/" }
+                                val headers = mutableListOf<String>()
+                                while (true) {
+                                    val line = reader.readLine() ?: break
+                                    if (line.isEmpty()) break
+                                    headers.add(line)
                                 }
-                            } catch (_: Exception) {
-                            }
-                        }
+                                val contentLength = headers.firstOrNull {
+                                    it.startsWith("Content-Length", ignoreCase = true)
+                                }?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
+
+                                val output = socket.getOutputStream()
+                                fun writeResponse(statusLine: String, body: String = "") {
+                                    val bodyBytes = body.toByteArray()
+                                    val header = StringBuilder()
+                                        .append(statusLine)
+                                        .append("\r\nContent-Length: ")
+                                        .append(bodyBytes.size)
+                                        .append("\r\nContent-Type: text/plain\r\n\r\n")
+                                    try {
+                                        output.write(header.toString().toByteArray())
+                                        if (bodyBytes.isNotEmpty()) {
+                                            output.write(bodyBytes)
+                                        }
+                                        output.flush()
+                                    } catch (_: Exception) {
+                                    }
+                                }
+
+                                when {
+                                    method.equals("GET", true) -> {
+                                        when {
+                                            path.equals("/STATUS", true) -> {
+                                                writeResponse("HTTP/1.1 200 OK", AppStatusManager.current)
+                                            }
+                                            path.equals("/app", true) -> {
+                                                writeResponse("HTTP/1.1 200 OK", "NFC-EMULATOR")
+                                            }
+                                            path.equals("/timestamp", true) -> {
+                                                val now = System.currentTimeMillis().toString()
+                                                CommunicationLog.add("REQUESTED TIMESTAMP: $now", true, true)
+                                                writeResponse("HTTP/1.1 200 OK", now)
+                                            }
+                                            else -> {
+                                                writeResponse("HTTP/1.1 404 Not Found")
+                                            }
+                                        }
+                                    }
+                                    method.equals("POST", true) -> {
+                                        val bodyChars = CharArray(contentLength)
+                                        var read = 0
+                                        while (read < contentLength) {
+                                            val r = reader.read(bodyChars, read, contentLength - read)
+                                            if (r == -1) break
+                                            read += r
+                                        }
+                                        val body = String(bodyChars, 0, read)
+                                        Log.d(TAG, "request: $body")
+                                        if (body.isNotBlank()) {
+                                            CommunicationLog.add("POST: $body", true, true)
+                                            cleared = ServerJsonHandler.handle(body)
+                                        }
+                                        writeResponse("HTTP/1.1 200 OK", "OK")
+                                    }
+                                    else -> {
+                                        writeResponse("HTTP/1.1 405 Method Not Allowed")
+                                    }
+                                }
                             } catch (e: Exception) {
                                 Log.d(TAG, "client error: ${e.message}")
                             } finally {

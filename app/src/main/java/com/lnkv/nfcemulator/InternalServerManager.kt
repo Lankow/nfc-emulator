@@ -82,8 +82,8 @@ object InternalServerManager {
                                             path.equals("/STATUS", true) -> {
                                                 writeResponse("HTTP/1.1 200 OK", AppStatusManager.current)
                                             }
-                                            path.equals("/APP-NFC", true) -> {
-                                                writeResponse("HTTP/1.1 200 OK", "APP-NFC")
+                                            path.equals("/app", true) -> {
+                                                writeResponse("HTTP/1.1 200 OK", "NFC-EMULATOR")
                                             }
                                             path.equals("/timestamp", true) -> {
                                                 val now = System.currentTimeMillis().toString()

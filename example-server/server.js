@@ -166,9 +166,9 @@ app.get('/STATUS', (_req, res) => {
   res.status(HTTP_OK).json({ status: appStatus });
 });
 
-app.get('/APP-NFC', (_req, res) => {
-  console.log('GET /APP-NFC -> APP-NFC');
-  res.status(HTTP_OK).send('APP-NFC');
+app.get('/app', (_req, res) => {
+  console.log('GET /app -> NFC-EMULATOR');
+  res.status(HTTP_OK).send('NFC-EMULATOR');
 });
 
 app.get('/timestamp', (_req, res) => {

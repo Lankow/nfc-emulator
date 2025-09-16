@@ -51,9 +51,10 @@ curl -X POST http://localhost:1818/ -H "Content-Type: application/json" \
 
 The server also exposes `GET /STATUS` to report the last status value posted by
 the app and `POST /STATUS` for the app to send status updates. Two helper
-diagnostic endpoints are available as well: `GET /APP-NFC` returns a static
-handshake string so you can verify you are querying the emulator server, and
-`GET /timestamp` responds with the current Unix timestamp in milliseconds.
+diagnostic endpoints are available as well: `GET /app` returns a static
+`NFC-EMULATOR` handshake string so you can verify you are querying the emulator
+server, and `GET /timestamp` responds with the current Unix timestamp in
+milliseconds.
 
 ## Log management
 

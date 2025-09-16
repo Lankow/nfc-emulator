@@ -4,6 +4,7 @@ package com.lnkv.nfcemulator
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.wifi.WifiManager
 import android.nfc.NfcAdapter
@@ -106,8 +107,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.AnnotatedString
 import android.content.res.ColorStateList
-import java.io.File
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetAddress
@@ -547,8 +548,10 @@ fun MainScreen() {
                           }
                       },
                       onClearScenario = {
+                          if (isRunning) {
+                              ScenarioManager.setRunning(false)
+                          }
                           ScenarioManager.setCurrent(context, null)
-                          ScenarioManager.setRunning(false)
                       },
                       onToggleSilence = {
                           ScenarioManager.toggleSilence()
@@ -593,6 +596,45 @@ fun CommunicationScreen(
     }
     val serverEntries = filteredEntries.filter { it.isServer }
     val nfcEntries = filteredEntries.filter { !it.isServer }
+    val context = LocalContext.current
+    var pendingSave by remember { mutableStateOf<Pair<String, List<CommunicationLog.Entry>>?>(null) }
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        val pending = pendingSave
+        if (uri != null && pending != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: SecurityException) {
+            }
+            val directory = DocumentFile.fromTreeUri(context, uri)
+            if (directory != null) {
+                val file = directory.createFile("text/plain", pending.first)
+                if (file != null) {
+                    try {
+                        context.contentResolver.openOutputStream(file.uri)?.use { stream ->
+                            CommunicationLog.saveToStream(stream, pending.second)
+                        }
+                        Toast.makeText(context, "Logs stored to file ${pending.first}", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(
+                            context,
+                            "Failed to save logs: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } else {
+                    Toast.makeText(context, "Unable to create log file", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(context, "Unable to access selected folder", Toast.LENGTH_SHORT).show()
+            }
+        }
+        pendingSave = null
+    }
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         MultiChoiceSegmentedButtonRow(
             modifier = Modifier
@@ -696,8 +738,6 @@ fun CommunicationScreen(
                 modifier = Modifier.weight(1f)
             )
         }
-
-        val context = LocalContext.current
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -707,9 +747,8 @@ fun CommunicationScreen(
                     val scenarioName = (currentScenario ?: "log").replace(" ", "_")
                     val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS", java.util.Locale.getDefault()).format(java.util.Date())
                     val fileName = "${scenarioName}_${timestamp}.log"
-                    val file = File(context.filesDir, fileName)
-                    CommunicationLog.saveToFile(file, filteredEntries)
-                    Toast.makeText(context, "Logs stored to file $fileName", Toast.LENGTH_SHORT).show()
+                    pendingSave = fileName to filteredEntries.toList()
+                    saveLauncher.launch(null)
                 },
                 modifier = Modifier.weight(1f).testTag("SaveButton")
             ) {
@@ -1565,6 +1604,14 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 Text("Connect Automatically")
             }
             Spacer(modifier = Modifier.height(16.dp))
+            val externalStateColor = when {
+                serverState.equals("Connected", ignoreCase = true) -> Color.Green
+                serverState.contains("Disconnected", ignoreCase = true) ||
+                    serverState.contains("Failed", ignoreCase = true) ||
+                    serverState.contains("Stopped", ignoreCase = true) ||
+                    serverState.contains("Error", ignoreCase = true) -> Color.Red
+                else -> MaterialTheme.colorScheme.onSurface
+            }
             Text(
                 buildAnnotatedString {
                     append("Server State: ")
@@ -1572,7 +1619,8 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                         append(serverState)
                     }
                 },
-                modifier = Modifier.testTag("ServerState")
+                modifier = Modifier.testTag("ServerState"),
+                color = externalStateColor
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -1691,6 +1739,7 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                 Text("Start Automatically")
             }
             Spacer(modifier = Modifier.height(16.dp))
+            val internalStateColor = if (isServerRunning) Color.Green else Color.Red
             Text(
                 buildAnnotatedString {
                     append("Server State: ")
@@ -1698,7 +1747,8 @@ fun ServerScreen(modifier: Modifier = Modifier) {
                         append(if (isServerRunning) "Running" else "Stopped")
                     }
                 },
-                modifier = Modifier.testTag("ServerState")
+                modifier = Modifier.testTag("ServerState"),
+                color = internalStateColor
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(

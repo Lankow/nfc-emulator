@@ -141,20 +141,60 @@ object ServerJsonHandler {
             CommunicationLog.clear()
             cleared = true
         }
-        if (obj.optBoolean("Save", false)) {
-            try {
-                val scenario = ScenarioManager.current.value ?: "NoScenario"
-                val formatter = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-                val fileName = "${scenario}_${formatter.format(Date())}.log"
-                val dir = AppContextHolder.context.getExternalFilesDir(null)
-                    ?: AppContextHolder.context.filesDir
-                val file = File(dir, fileName)
-                CommunicationLog.saveToFile(file)
-                CommunicationLog.add("STATE-COMM: Log saved ${file.absolutePath}", true, true)
-                Log.d(TAG, "handleComm: saved ${file.absolutePath}")
-            } catch (e: Exception) {
-                Log.d(TAG, "handleComm save error: ${e.message}")
-                CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
+
+        obj.opt("Save")?.let { saveVal ->
+            val scenario = ScenarioManager.current.value ?: "NoScenario"
+            val formatter = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault())
+            val fileName = "${scenario}_${formatter.format(Date())}.log"
+
+            fun saveToDirectory(dir: File) {
+                val target = File(dir, fileName)
+                CommunicationLog.saveToFile(target)
+                CommunicationLog.add("STATE-COMM: Log saved ${target.absolutePath}", true, true)
+                Log.d(TAG, "handleComm: saved ${target.absolutePath}")
+            }
+
+            fun handleCustomPath(path: String) {
+                if (path.isBlank()) return
+                try {
+                    val dir = File(path)
+                    if (!dir.exists() && !dir.mkdirs()) {
+                        throw IllegalStateException("Cannot create directory")
+                    }
+                    saveToDirectory(dir)
+                } catch (e: Exception) {
+                    Log.d(TAG, "handleComm custom save error: ${e.message}")
+                    CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
+                }
+            }
+
+            when (saveVal) {
+                is Boolean -> if (saveVal) {
+                    try {
+                        val context = AppContextHolder.context
+                        val dir = context.getExternalFilesDir(null) ?: context.filesDir
+                        saveToDirectory(dir)
+                    } catch (e: Exception) {
+                        Log.d(TAG, "handleComm save error: ${e.message}")
+                        CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
+                    }
+                }
+                is String -> handleCustomPath(saveVal)
+                is JSONObject -> {
+                    val path = saveVal.optString("Path", saveVal.optString("path"))
+                    if (path.isNotBlank()) {
+                        handleCustomPath(path)
+                    } else if (saveVal.optBoolean("Enabled", false)) {
+                        try {
+                            val context = AppContextHolder.context
+                            val dir = context.getExternalFilesDir(null) ?: context.filesDir
+                            saveToDirectory(dir)
+                        } catch (e: Exception) {
+                            Log.d(TAG, "handleComm save error: ${e.message}")
+                            CommunicationLog.add("STATE-COMM: Save error (${e.message})", true, false)
+                        }
+                    }
+                }
             }
         }
         if (obj.has("Mute")) {
@@ -175,6 +215,9 @@ object ServerJsonHandler {
             }
             "Clear" -> {
                 Log.d(TAG, "handleComm: clear current scenario")
+                if (ScenarioManager.running.value) {
+                    ScenarioManager.setRunning(false)
+                }
                 ScenarioManager.setCurrent(AppContextHolder.context, null)
             }
         }

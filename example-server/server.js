@@ -110,6 +110,17 @@ app.get('/STATUS', (_req, res) => {
   res.status(HTTP_OK).json({ status: appStatus });
 });
 
+app.get('/APP-NFC', (_req, res) => {
+  console.log('GET /APP-NFC -> APP-NFC');
+  res.status(HTTP_OK).send('APP-NFC');
+});
+
+app.get('/timestamp', (_req, res) => {
+  const now = Date.now().toString();
+  console.log(`GET /timestamp -> ${now}`);
+  res.status(HTTP_OK).send(now);
+});
+
 app.post('/STATUS', (req, res) => {
   const { status } = req.body || {};
   if (typeof status === 'string') {

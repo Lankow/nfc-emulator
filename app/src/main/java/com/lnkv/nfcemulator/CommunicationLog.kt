@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.io.OutputStream
 import kotlin.collections.ArrayDeque
 
 /**
@@ -54,7 +55,23 @@ object CommunicationLog {
      */
     fun saveToFile(file: File, entries: List<Entry> = buffer.toList()) {
         Log.d(TAG, "saveToFile: ${file.path}")
+        file.parentFile?.let { parent ->
+            if (!parent.exists()) {
+                parent.mkdirs()
+            }
+        }
+        file.outputStream().use { stream ->
+            saveToStream(stream, entries)
+        }
+    }
+
+    /**
+     * Writes provided [entries] to the supplied [outputStream].
+     */
+    fun saveToStream(outputStream: OutputStream, entries: List<Entry> = buffer.toList()) {
         val text = entries.joinToString("\n") { it.message }
-        file.writeText(text)
+        outputStream.bufferedWriter().use { writer ->
+            writer.write(text)
+        }
     }
 }

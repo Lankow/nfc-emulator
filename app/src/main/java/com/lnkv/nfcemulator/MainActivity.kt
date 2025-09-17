@@ -509,6 +509,7 @@ fun MainScreen() {
     val currentScenario by ScenarioManager.current.collectAsState()
     val isRunning by ScenarioManager.running.collectAsState()
     val isSilenced by ScenarioManager.silenced.collectAsState()
+    val isNfcEnabled by AidManager.enabledFlow.collectAsState()
     val context = LocalContext.current
 
     BackHandler(enabled = currentScreen != Screen.Communication) {
@@ -543,6 +544,7 @@ fun MainScreen() {
                       currentScenario,
                       isRunning,
                       isSilenced,
+                      isNfcEnabled,
                       onToggleRun = {
                           if (currentScenario != null) {
                               val starting = !isRunning
@@ -557,6 +559,9 @@ fun MainScreen() {
                       },
                       onToggleSilence = {
                           ScenarioManager.toggleSilence()
+                      },
+                      onToggleNfc = {
+                          AidManager.setEnabled(!isNfcEnabled)
                       },
                       modifier = Modifier.padding(padding)
                   )
@@ -584,9 +589,11 @@ fun CommunicationScreen(
     currentScenario: String?,
     isRunning: Boolean,
     isSilenced: Boolean,
+    isNfcEnabled: Boolean,
     onToggleRun: () -> Unit,
     onClearScenario: () -> Unit,
     onToggleSilence: () -> Unit,
+    onToggleNfc: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showServer by rememberSaveable { mutableStateOf(true) }
@@ -599,6 +606,14 @@ fun CommunicationScreen(
     }
     val serverEntries = filteredEntries.filter { it.isServer }
     val nfcEntries = filteredEntries.filter { !it.isServer }
+    val scenarioLabel = currentScenario?.let { name ->
+        if (name.length > 12) {
+            name.take(12) + "(..)"
+        } else {
+            name
+        }
+    } ?: "None"
+
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         MultiChoiceSegmentedButtonRow(
             modifier = Modifier
@@ -627,7 +642,7 @@ fun CommunicationScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Current Scenario: ${currentScenario ?: "None"}",
+                "Current Scenario: $scenarioLabel",
                 modifier = Modifier.weight(1f)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -669,6 +684,19 @@ fun CommunicationScreen(
                     Icon(
                         if (isSilenced) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
                         contentDescription = if (isSilenced) "Unsilence" else "Silence",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Button(
+                    onClick = onToggleNfc,
+                    modifier = Modifier.size(40.dp).testTag("ScenarioNfcButton"),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(
+                        if (isNfcEnabled) Icons.Filled.Nfc else Icons.Filled.Close,
+                        contentDescription = if (isNfcEnabled) "Disable NFC" else "Enable NFC",
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
@@ -1283,20 +1311,7 @@ private fun saveAids(context: Context, aids: List<String>) {
     if (validAids.size != aids.size) {
         Toast.makeText(context, "Some AIDs were invalid and ignored", Toast.LENGTH_SHORT).show()
     }
-    val prefs = context.getSharedPreferences(AID_PREFS, Context.MODE_PRIVATE)
-    prefs.edit().putStringSet(AID_KEY, validAids.toSet()).apply()
-    val nfcAdapter = NfcAdapter.getDefaultAdapter(context)
-    val cardEmulation = CardEmulation.getInstance(nfcAdapter)
-    val component = ComponentName(context, TypeAEmulatorService::class.java)
-    if (validAids.isEmpty()) {
-        cardEmulation.removeAidsForService(component, CardEmulation.CATEGORY_OTHER)
-    } else {
-        cardEmulation.registerAidsForService(
-            component,
-            CardEmulation.CATEGORY_OTHER,
-            validAids
-        )
-    }
+    AidManager.replaceAll(validAids)
 }
 
 private fun exportAids(context: Context, aids: List<String>, uri: Uri) {
@@ -1350,6 +1365,7 @@ fun AidScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val aids = remember { loadAids(context) }
     var newAid by remember { mutableStateOf("") }
+    val isEnabled by AidManager.enabledFlow.collectAsState()
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -1371,6 +1387,32 @@ fun AidScreen(modifier: Modifier = Modifier) {
     }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CircleCheckbox(
+                checked = isEnabled,
+                onCheckedChange = { enabled ->
+                    AidManager.setEnabled(enabled)
+                    val message = if (enabled) {
+                        "NFC emulation enabled"
+                    } else {
+                        "NFC emulation disabled"
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+            )
+            Column {
+                Text("NFC Emulation", fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (isEnabled) "The phone will respond to NFC readers." else "All NFC communication is blocked.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)

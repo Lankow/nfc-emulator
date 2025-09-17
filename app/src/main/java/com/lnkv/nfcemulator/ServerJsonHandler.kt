@@ -43,6 +43,10 @@ object ServerJsonHandler {
     }
 
     private fun handleAid(obj: JSONObject) {
+        parseFlexibleBoolean(obj.opt("Enabled"))?.let { enabled ->
+            Log.d(TAG, "handleAid: enabled=$enabled")
+            AidManager.setEnabled(enabled)
+        }
         val clear = obj.optBoolean("Clear", false)
         if (clear) {
             Log.d(TAG, "handleAid: clear")
@@ -150,6 +154,15 @@ object ServerJsonHandler {
             if (mute && !silenced) ScenarioManager.toggleSilence()
             if (!mute && silenced) ScenarioManager.toggleSilence()
         }
+        val nfcToggleRaw = when {
+            obj.has("NfcEnabled") -> obj.opt("NfcEnabled")
+            obj.has("EnableNfc") -> obj.opt("EnableNfc")
+            else -> null
+        }
+        parseFlexibleBoolean(nfcToggleRaw)?.let { enabled ->
+            Log.d(TAG, "handleComm: nfcEnabled=$enabled")
+            AidManager.setEnabled(enabled)
+        }
         when (obj.optString("CurrentScenario")) {
             "Start" -> {
                 Log.d(TAG, "handleComm: start scenario")
@@ -168,6 +181,16 @@ object ServerJsonHandler {
             }
         }
         return cleared
+    }
+
+    private fun parseFlexibleBoolean(value: Any?): Boolean? {
+        return when (value) {
+            null, JSONObject.NULL -> null
+            is Boolean -> value
+            is Number -> value.toInt() != 0
+            is String -> value.equals("true", ignoreCase = true) || value == "1"
+            else -> null
+        }
     }
 
     private fun handleLogSettings(obj: JSONObject) {

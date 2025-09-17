@@ -27,8 +27,10 @@ You can also open the project in Android Studio and run it directly on a connect
 
 1. Install the app on an NFC-capable Android device.
 2. Enter up to two Application Identifiers (AIDs) in the provided fields.
-3. Tap **Save AIDs** and hold the device near an NFC reader.
-4. The communication log at the bottom shows APDU requests (red) and responses (green),
+3. Toggle **NFC Emulation** from the **AID** screen when you need to disable or re-enable
+   all NFC communication (including Android's native wait frames).
+4. Tap **Save AIDs** and hold the device near an NFC reader.
+5. The communication log at the bottom shows APDU requests (red) and responses (green),
    along with scenario state changes and NFC activation or deactivation events.
 
 ## HTTP Control API
@@ -75,11 +77,14 @@ Manage registered Application Identifiers.
   "Aid": {
     "Add": ["A0000002471001", "A0000002471002"],   // optional AIDs to add
     "Remove": ["A0000002471003"],                  // optional AIDs to remove
-    "Clear": false                                 // set true to unregister all AIDs
+    "Clear": false,                                // set true to unregister all AIDs
+    "Enabled": true                                // set false to block all NFC comms
   }
 }
 ```
 `Add` and `Remove` accept either a single string or an array of strings.
+`Enabled` toggles whether the phone responds to NFC readers. Disabling it removes the
+registered AIDs until it is re-enabled.
 
 #### `Comm`
 
@@ -91,10 +96,15 @@ Control the communication log and scenarios.
     "Clear": false,            // clear the log when true
     "Save": true,              // save log to file when true
     "Mute": false,             // mute/unmute communication
+    "NfcEnabled": true,        // toggle NFC emulation on the device
     "CurrentScenario": "Start" // "Start", "Stop" or "Clear"
   }
 }
 ```
+
+`NfcEnabled` mirrors the toggle available on the Communication screen. When set
+to `false`, the device will stop responding to NFC readers and log the change in
+the server communication feed.
 
 Requests receive a simple `200 OK` response. Additional command types may be
 introduced in future versions.

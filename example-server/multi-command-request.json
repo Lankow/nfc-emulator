@@ -1,6 +1,7 @@
 {
   "Aid": {
     "Clear": true,
+    "Enabled": true,
     "Add": ["A0000002471001", "A0000002471002"]
   },
   "Scenarios": {
@@ -15,6 +16,6 @@
     ],
     "Current": "SampleScenario"
   },
-  "Comm": { "Clear": true },
+  "Comm": { "Clear": true, "NfcEnabled": false },
   "Filters": { "Add": "A0B1" }
 }

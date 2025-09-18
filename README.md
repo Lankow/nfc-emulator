@@ -27,8 +27,8 @@ You can also open the project in Android Studio and run it directly on a connect
 
 1. Install the app on an NFC-capable Android device.
 2. Enter up to two Application Identifiers (AIDs) in the provided fields.
-3. Toggle **NFC Emulation** from the **AID** screen when you need to disable or re-enable
-   all NFC communication (including Android's native wait frames).
+3. Toggle **NFC emulation** from the **Communication** screen when you need to disable or
+   re-enable all NFC communication (including Android's native wait frames).
 4. Tap **Save AIDs** and hold the device near an NFC reader.
 5. The communication log at the bottom shows APDU requests (red) and responses (green),
    along with scenario state changes and NFC activation or deactivation events.

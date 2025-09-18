@@ -1365,8 +1365,6 @@ fun AidScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val aids = remember { loadAids(context) }
     var newAid by remember { mutableStateOf("") }
-    val isEnabled by AidManager.enabledFlow.collectAsState()
-
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -1387,32 +1385,6 @@ fun AidScreen(modifier: Modifier = Modifier) {
     }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            CircleCheckbox(
-                checked = isEnabled,
-                onCheckedChange = { enabled ->
-                    AidManager.setEnabled(enabled)
-                    val message = if (enabled) {
-                        "NFC emulation enabled"
-                    } else {
-                        "NFC emulation disabled"
-                    }
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                }
-            )
-            Column {
-                Text("NFC Emulation", fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (isEnabled) "The phone will respond to NFC readers." else "All NFC communication is blocked.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)

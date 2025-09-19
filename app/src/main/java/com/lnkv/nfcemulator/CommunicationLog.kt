@@ -16,15 +16,38 @@ import kotlin.collections.ArrayDeque
  * Holds APDU communication logs between the external reader and the emulator.
  */
 object CommunicationLog {
+    /** Logcat tag used for debug statements. */
     private const val TAG = "CommunicationLog"
+
+    /** Maximum number of in-memory log entries retained at once. */
     private const val MAX_ENTRIES = 1000
+
+    /** Name of the preference file storing log configuration. */
     private const val PREFS_NAME = "log_settings"
+
+    /** Preference key for persisting custom subdirectory paths. */
     private const val KEY_PATH = "path"
+
+    /** Preference key for storing the max storage size in megabytes. */
     private const val KEY_MAX_STORAGE_MB = "max_storage_mb"
+
+    /** Default maximum storage size when the user has not customized it. */
     private const val DEFAULT_MAX_STORAGE_MB = 10
+
+    /** Default directory name used for log exports. */
     private const val LOGS_DIRECTORY = "logs"
+
+    /** Regular expression ensuring each path segment is filesystem safe. */
     private val PATH_SEGMENT_PATTERN = Regex("^[A-Za-z0-9._-]+$")
 
+    /**
+     * Represents a single communication entry written to the UI log feed.
+     *
+     * @property message Human-readable message containing the APDU payload.
+     * @property isServer Whether the entry originated from the server pipeline.
+     * @property isSuccess Optional success marker for differentiating colors.
+     * @property timestamp Epoch millis when the entry was recorded.
+     */
     data class Entry(
         val message: String,
         val isServer: Boolean,
@@ -32,23 +55,47 @@ object CommunicationLog {
         val timestamp: Long = System.currentTimeMillis()
     )
 
+    /**
+     * Result of validating a user-provided path.
+     *
+     * @property sanitized Cleaned path string safe to persist.
+     * @property isValid Whether the sanitized value can be used.
+     * @property errorMessage Optional human-readable reason when invalid.
+     */
     data class PathValidationResult(
         val sanitized: String,
         val isValid: Boolean,
         val errorMessage: String? = null
     )
 
+    /** Ring buffer storing recent log [Entry] items. */
     private val buffer = ArrayDeque<Entry>()
+
+    /** Internal flow backing [entries] exposed to the UI. */
     private val _entries = MutableStateFlow<List<Entry>>(emptyList())
+
+    /** Read-only snapshot of the current log buffer. */
     val entries = _entries.asStateFlow()
 
+    /** Mutable state capturing the configured subdirectory path. */
     private val _logPath = MutableStateFlow("")
+
+    /** Public view of [_logPath] so UI components can observe changes. */
     val logPath = _logPath.asStateFlow()
 
+    /** Mutable state describing the max storage limit. */
     private val _maxStorageMb = MutableStateFlow(DEFAULT_MAX_STORAGE_MB)
+
+    /** Public read-only state providing the max storage limit. */
     val maxStorageMb = _maxStorageMb.asStateFlow()
 
+    /** Preference reference obtained once during [init]. */
     private lateinit var prefs: SharedPreferences
+
+    /**
+     * Flag ensuring heavy initialization logic only runs once even if helpers
+     * are called repeatedly.
+     */
     private var initialized = false
 
     /**
@@ -60,8 +107,11 @@ object CommunicationLog {
      */
     fun add(message: String, isServer: Boolean, isSuccess: Boolean? = null) {
         Log.d(TAG, "add: $message")
+        // Append the newest entry at the tail of the deque so chronological
+        // ordering is preserved in the UI.
         buffer.addLast(Entry(message, isServer, isSuccess))
         if (buffer.size > MAX_ENTRIES) {
+            // Keep the buffer bounded to avoid unlimited memory growth.
             buffer.removeFirst()
         }
         _entries.value = buffer.toList()
@@ -146,6 +196,7 @@ object CommunicationLog {
         val base = context.getExternalFilesDir(LOGS_DIRECTORY)
             ?: File(context.filesDir, LOGS_DIRECTORY)
         if (!base.exists()) {
+            // Ensure the directory tree exists before returning it to callers.
             base.mkdirs()
         }
         return base

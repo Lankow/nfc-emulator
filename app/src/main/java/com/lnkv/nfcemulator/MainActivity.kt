@@ -124,9 +124,16 @@ import android.util.Log
  * Communication, Scenarios, and Server screens.
  */
 class MainActivity : ComponentActivity() {
+    /** Android system interface used to register AIDs for HCE. */
     private lateinit var cardEmulation: CardEmulation
+
+    /** Component reference to [TypeAEmulatorService]. */
     private lateinit var componentName: ComponentName
+
+    /** Shared preferences used to persist emulator configuration. */
     private lateinit var prefs: SharedPreferences
+
+    /** Tag assigned to Logcat statements emitted by this activity. */
     private val TAG = "MainActivity"
 
     /**
@@ -150,6 +157,7 @@ class MainActivity : ComponentActivity() {
             }
         })
 
+        // Resolve the NFC adapter and supporting services required for HCE registration.
         val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         cardEmulation = CardEmulation.getInstance(nfcAdapter)
         componentName = ComponentName(this, TypeAEmulatorService::class.java)
@@ -158,6 +166,7 @@ class MainActivity : ComponentActivity() {
         AppContextHolder.init(applicationContext)
         AidManager.init(cardEmulation, componentName, prefs)
 
+        // Load any previously registered AIDs so we can restore emulator state.
         val storedAids = prefs.getStringSet("aids", setOf("F0010203040506"))!!.toList()
         Log.d(TAG, "storedAids: $storedAids")
         AidManager.registerAids(storedAids)
@@ -426,6 +435,7 @@ fun StepEditor(
 /**
  * Navigation targets displayed in the bottom bar.
  */
+/** Enum describing tabs in the primary navigation bar. */
 enum class Screen(val label: String) {
     Communication("Comm"),
     Scenario("Scenarios"),
@@ -433,12 +443,27 @@ enum class Screen(val label: String) {
     Aid("AID")
 }
 
+/**
+ * Mutable scenario step definition.
+ *
+ * @property name User-facing label identifying the step.
+ * @property request Hex request payload expected from the reader.
+ * @property response Hex response the emulator should return.
+ */
 data class Step(
     var name: String,
     var request: String = "",
     var response: String = ""
 )
 
+/**
+ * Mutable scenario definition comprising metadata and ordered steps.
+ *
+ * @property name Scenario identifier displayed in the UI.
+ * @property aid Preferred AID for the scenario.
+ * @property selectOnce Whether the select AID should only be honoured once.
+ * @property steps Ordered stateful list of [Step] instances.
+ */
 data class Scenario(
     var name: String,
     var aid: String,
@@ -446,7 +471,9 @@ data class Scenario(
     val steps: SnapshotStateList<Step> = mutableStateListOf()
 )
 
+/** Preference file name reused across scenario-related helpers. */
 private const val SCENARIO_PREFS = "scenario_prefs"
+/** SharedPreferences key for serialised scenario payloads. */
 private const val SCENARIO_KEY = "scenarios"
 
 /**
@@ -1399,7 +1426,9 @@ fun ScenarioEditor(
     }
 }
 
+/** Preference file storing the user's AID catalogue. */
 private const val AID_PREFS = "nfc_aids"
+/** SharedPreferences key containing the serialized AID set. */
 private const val AID_KEY = "aids"
 
 /**

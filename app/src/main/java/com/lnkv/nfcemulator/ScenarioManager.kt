@@ -11,29 +11,58 @@ import androidx.compose.runtime.toMutableStateList
  * Central store for the currently selected scenario and its execution state.
  */
 object ScenarioManager {
+    /** Preference file storing serialized scenarios. */
     private const val PREFS = "scenario_prefs"
+
+    /** Preference key indicating the currently selected scenario name. */
     private const val CURRENT_KEY = "currentScenario"
+
+    /** Preference key for the serialized scenario collection. */
     private const val SCENARIO_KEY = "scenarios"
+
+    /** Logcat tag used when tracing scenario operations. */
     private const val TAG = "ScenarioManager"
 
+    /** APDU response bytes representing success (`0x9000`). */
     private val SUCCESS = byteArrayOf(0x90.toByte(), 0x00.toByte())
+
+    /** APDU response bytes representing `6A82` (file not found). */
     private val FILE_NOT_FOUND = byteArrayOf(0x6A.toByte(), 0x82.toByte())
 
+    /** Mutable flow tracking the currently selected scenario name. */
     private val _current = MutableStateFlow<String?>(null)
+
+    /** Public read-only view over [_current]. */
     val current = _current.asStateFlow()
 
+    /** Mutable flag describing whether the scenario is actively running. */
     private val _running = MutableStateFlow(false)
+
+    /** Read-only state representing the running flag. */
     val running = _running.asStateFlow()
 
+    /** Mutable state specifying if the scenario has been silenced. */
     private val _silenced = MutableStateFlow(false)
+
+    /** Public view of [_silenced] so UI layers can render toggles. */
     val silenced = _silenced.asStateFlow()
 
+    /** Mutable list of request/response [Step] definitions for the active scenario. */
     private val _steps = MutableStateFlow<List<Step>>(emptyList())
+
+    /** AID associated with the selected scenario. */
     private var scenarioAid: String = ""
+
+    /** The next AID that must be selected before scenario steps execute. */
     private var aidToSelect: String = ""
+
+    /** Whether the scenario should accept the SELECT command only once. */
     private var selectOnce: Boolean = false
 
+    /** Index pointer for the currently expected step. */
     private var stepIndex = 0
+
+    /** Tracks if the initial SELECT command has been observed. */
     private var isSelected = false
 
     /**
@@ -205,7 +234,7 @@ object ScenarioManager {
         if (!isSelected) {
             if (isSelectCommand(commandApdu) && extractAid(commandApdu).equals(aidToSelect, true)) {
                 isSelected = true
-                if (selectOnce) aidToSelect = ""
+                if (selectOnce) aidToSelect = "" // One-shot select means we should ignore further SELECTs.
                 return SUCCESS
             }
             return FILE_NOT_FOUND
@@ -348,6 +377,7 @@ object ScenarioManager {
         val result = ByteArray(cleaned.length / 2)
         for (i in result.indices) {
             val index = i * 2
+            // Convert each pair of hex characters into a single byte value.
             val byte = cleaned.substring(index, index + 2).toInt(16)
             result[i] = byte.toByte()
         }

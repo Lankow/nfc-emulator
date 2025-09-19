@@ -27,19 +27,36 @@ import java.net.HttpURLConnection
  * processed commands.
  */
 object ServerConnectionManager {
+    /** Coroutine scope used to run asynchronous networking tasks. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Logcat tag to simplify filtering connection logs. */
     private const val TAG = "ServerConnMgr"
 
+    /** Human-readable connection state displayed in the UI. */
     var state by mutableStateOf("Disconnected")
         private set
+
+    /** Flag preventing concurrent connect/disconnect operations. */
     var isProcessing by mutableStateOf(false)
         private set
 
+    /** Active TCP socket; `null` when disconnected. */
     private var socket: Socket? = null
+
+    /** Most recent IP address supplied via [connect]. */
     private var currentIp: String? = null
+
+    /** Most recent port used for the connection. */
     private var currentPort: Int? = null
+
+    /** Job running the periodic polling loop. */
     private var pollJob: Job? = null
+
+    /** Body of the last non-empty response received from the server. */
     private var lastResp: String? = null
+
+    /** Version snapshot corresponding to [lastResp]; used for replay logic. */
     private var lastVersion: Long = RequestStateTracker.version
 
     /**
@@ -118,6 +135,7 @@ object ServerConnectionManager {
                             pollJob?.cancel()
                             lastResp = null
                             lastVersion = RequestStateTracker.version
+                            // Launch the long-running polling loop that requests new commands.
                             pollJob = scope.launch {
                                 while (true) {
                                     try {
@@ -146,6 +164,7 @@ object ServerConnectionManager {
                                         )
                                         Log.d(TAG, "poll error: ${e.message}")
                                     }
+                                    // Wait before the next poll, enforcing a minimum 1-second cadence.
                                     delay(max(pollingMs, 1000L))
                                 }
                             }

@@ -57,6 +57,7 @@ class TypeAEmulatorService : HostApduService() {
     }
 
     companion object {
+        /** Logcat tag used for tracing APDU interactions. */
         private const val TAG = "TypeAEmulatorService"
     }
 }

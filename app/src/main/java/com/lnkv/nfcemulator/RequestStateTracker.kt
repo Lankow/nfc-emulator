@@ -6,6 +6,7 @@ package com.lnkv.nfcemulator
  * [markChanged] so that the next poll can reapply the last response if needed.
  */
 object RequestStateTracker {
+    /** Internal counter representing the number of significant state changes. */
     private var _version: Long = 0
 
     /**

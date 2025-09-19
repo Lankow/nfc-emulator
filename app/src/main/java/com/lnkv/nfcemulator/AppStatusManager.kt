@@ -8,7 +8,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * to an external server when connected.
  */
 object AppStatusManager {
+    /**
+     * Mutable flow backing the published status; keeps the last known state so
+     * new collectors immediately receive the current value.
+     */
     private val _status = MutableStateFlow("IDLE")
+
+    /** Publicly exposed read-only view of [_status] for UI or server clients. */
     val status = _status.asStateFlow()
 
     /** Current status value. */

@@ -10,21 +10,52 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Maintains the set of registered Application Identifiers (AIDs) and syncs
  * them with Android's [CardEmulation] subsystem.
+ *
+ * The object centralizes all AID persistence and registration logic so that
+ * other components only need to call high level helpers such as [add] or
+ * [replaceAll].
  */
 object AidManager {
+    /**
+     * SharedPreferences key used to store the serialized set of AIDs that
+     * should be registered.
+     */
     private const val PREFS_KEY = "aids"
+
+    /** SharedPreferences key used to persist whether emulation is enabled. */
     private const val ENABLED_KEY = "enabled"
+
+    /** Static tag used for Logcat visibility. */
     private const val TAG = "AidManager"
 
+    /**
+     * Handle to the Android system's card emulation interface. It is injected
+     * via [init] and reused for every register/remove call.
+     */
     lateinit var cardEmulation: CardEmulation
         private set
+
+    /**
+     * Component reference to the [TypeAEmulatorService]; required when
+     * registering AIDs with the framework.
+     */
     lateinit var componentName: ComponentName
         private set
+
+    /** Backing preferences store that persists both AIDs and enablement. */
     lateinit var prefs: SharedPreferences
         private set
 
+    /** Cached enablement flag so quick checks avoid hitting SharedPreferences. */
     private var enabled = true
+
+    /**
+     * Internal flow backing [enabledFlow]; allows observers to react to toggle
+     * changes.
+     */
     private val _enabledState = MutableStateFlow(true)
+
+    /** Public read-only flow describing whether the emulator is enabled. */
     val enabledFlow = _enabledState.asStateFlow()
 
     /** Indicates whether NFC emulation is currently enabled. */

@@ -10,10 +10,19 @@ import kotlinx.coroutines.flow.asStateFlow
  * wildcards. Filters are persisted between app runs via [android.content.SharedPreferences].
  */
 object CommunicationFilter {
+    /** Preference file name used for filter persistence. */
     private const val PREFS = "comm_filter_prefs"
+
+    /** Key within [PREFS] storing the string set of filters. */
     private const val KEY = "filters"
 
+    /**
+     * Internal state flow containing the active list of filters. New observers
+     * immediately receive the current snapshot.
+     */
     private val _filters = MutableStateFlow<List<String>>(emptyList())
+
+    /** Read-only view over [_filters] exposed to UI layers. */
     val filters = _filters.asStateFlow()
 
     /**
@@ -102,6 +111,7 @@ object CommunicationFilter {
      * @return `true` when at least one filter matches the message body.
      */
     fun shouldHide(message: String): Boolean {
+        // Strip prefixes like "REQ:" and spaces so matching is performed solely on the payload.
         val hex = message.substringAfter(":").replace(" ", "").uppercase()
         return _filters.value.any { patternMatches(it, hex) }
     }
@@ -114,6 +124,7 @@ object CommunicationFilter {
      * @return `true` when the message satisfies the pattern.
      */
     private fun patternMatches(pattern: String, message: String): Boolean {
+        // Translate the wildcard syntax into a regular expression matcher.
         val regex = "^" + pattern.replace("*", "[0-9A-F]*") + "$"
         return Regex(regex).matches(message)
     }

@@ -8,6 +8,11 @@ import android.content.Context
  * reference passed through every call site.
  */
 object AppContextHolder {
+    /**
+     * Application-level [Context] that should outlive all UI components; it is
+     * initialized once from [init] and reused by helpers that need filesystem
+     * or resource access.
+     */
     lateinit var context: Context
         private set
 

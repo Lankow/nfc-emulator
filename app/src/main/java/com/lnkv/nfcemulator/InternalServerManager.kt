@@ -18,15 +18,27 @@ import android.util.Log
  * and forwarding payloads to the JSON command handler.
  */
 object InternalServerManager {
+    /** Coroutine scope hosting all long-running socket operations. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Tag used for Logcat statements. */
     private const val TAG = "InternalServer"
 
+    /**
+     * Human-readable state string surfaced to the UI. Examples: "Running",
+     * "Stopped", or an error description.
+     */
     var state by mutableStateOf("Stopped")
         private set
+
+    /** Indicates whether a stop/start transition is in progress. */
     var isProcessing by mutableStateOf(false)
         private set
 
+    /** Currently active [ServerSocket], or `null` when not running. */
     private var serverSocket: ServerSocket? = null
+
+    /** Active client sockets keyed by a readable host:port identifier. */
     private val clients = mutableMapOf<String, Socket>()
 
     /**
@@ -44,6 +56,8 @@ object InternalServerManager {
             serverSocket = server
             state = "Running"
             CommunicationLog.add("STATE-INT: Server started on port ${server.localPort}.", true, true)
+            // Accept incoming sockets on a background coroutine so the UI thread
+            // remains responsive while automation clients connect.
             scope.launch {
                 try {
                     while (!server.isClosed) {
@@ -88,6 +102,7 @@ object InternalServerManager {
                                     try {
                                         output.write(header.toString().toByteArray())
                                         if (bodyBytes.isNotEmpty()) {
+                                            // HTTP requires the raw bytes to follow the headers.
                                             output.write(bodyBytes)
                                         }
                                         output.flush()
@@ -127,6 +142,7 @@ object InternalServerManager {
                                         Log.d(TAG, "request: $body")
                                         if (body.isNotBlank()) {
                                             CommunicationLog.add("POST: $body", true, true)
+                                            // Delegate JSON command parsing to the dedicated handler.
                                             cleared = ServerJsonHandler.handle(body)
                                         }
                                         writeResponse("HTTP/1.1 200 OK", "OK")

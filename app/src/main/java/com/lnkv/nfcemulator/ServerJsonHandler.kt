@@ -10,6 +10,7 @@ import android.util.Log
  * updates the app's managers.
  */
 object ServerJsonHandler {
+    /** Logcat tag used to trace automation parsing events. */
     private const val TAG = "ServerJsonHandler"
 
     /**

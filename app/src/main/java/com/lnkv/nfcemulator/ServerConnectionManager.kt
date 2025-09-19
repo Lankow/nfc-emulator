@@ -21,24 +21,48 @@ import android.util.Log
 import kotlin.math.max
 import java.net.HttpURLConnection
 
+/**
+ * Handles the lifecycle of the external automation server connection including
+ * socket setup, polling loop management, and follow-up DELETE calls that clear
+ * processed commands.
+ */
 object ServerConnectionManager {
+    /** Coroutine scope used to run asynchronous networking tasks. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Logcat tag to simplify filtering connection logs. */
     private const val TAG = "ServerConnMgr"
 
+    /** Human-readable connection state displayed in the UI. */
     var state by mutableStateOf("Disconnected")
         private set
+
+    /** Flag preventing concurrent connect/disconnect operations. */
     var isProcessing by mutableStateOf(false)
         private set
 
+    /** Active TCP socket; `null` when disconnected. */
     private var socket: Socket? = null
+
+    /** Most recent IP address supplied via [connect]. */
     private var currentIp: String? = null
+
+    /** Most recent port used for the connection. */
     private var currentPort: Int? = null
+
+    /** Job running the periodic polling loop. */
     private var pollJob: Job? = null
+
+    /** Body of the last non-empty response received from the server. */
     private var lastResp: String? = null
+
+    /** Version snapshot corresponding to [lastResp]; used for replay logic. */
     private var lastVersion: Long = RequestStateTracker.version
 
     /**
-     * Post status updates to the connected external server when available.
+     * Posts status updates to the connected external server when available.
+     *
+     * @param status Human-readable status code (e.g. READY, RUNNING).
      */
     fun postStatus(status: String) {
         val ip = currentIp
@@ -62,6 +86,15 @@ object ServerConnectionManager {
         }
     }
 
+    /**
+     * Initiates a socket connection to the remote automation server and starts
+     * polling for commands at the given interval.
+     *
+     * @param context Source context used to resolve connectivity state.
+     * @param ip IPv4 address or hostname of the server.
+     * @param port TCP port on which the server listens.
+     * @param pollingMs Poll interval in milliseconds (minimum 1s enforced).
+     */
     fun connect(context: Context, ip: String, port: Int, pollingMs: Long) {
         if (isProcessing) return
         currentIp = ip
@@ -102,6 +135,7 @@ object ServerConnectionManager {
                             pollJob?.cancel()
                             lastResp = null
                             lastVersion = RequestStateTracker.version
+                            // Launch the long-running polling loop that requests new commands.
                             pollJob = scope.launch {
                                 while (true) {
                                     try {
@@ -130,6 +164,7 @@ object ServerConnectionManager {
                                         )
                                         Log.d(TAG, "poll error: ${e.message}")
                                     }
+                                    // Wait before the next poll, enforcing a minimum 1-second cadence.
                                     delay(max(pollingMs, 1000L))
                                 }
                             }
@@ -166,6 +201,10 @@ object ServerConnectionManager {
         }
     }
 
+    /**
+     * Tears down any existing connection to the external server and cancels the
+     * polling job so the app can return to a disconnected state.
+     */
     fun disconnect() {
         if (isProcessing) return
         val ip = currentIp
@@ -205,6 +244,13 @@ object ServerConnectionManager {
         }
     }
 
+    /**
+     * Issues an HTTP DELETE to the server so processed commands are cleared from
+     * its queue. The call is best-effort and errors are logged for operators.
+     *
+     * @param ip Target server address to clear.
+     * @param port Target server port to clear.
+     */
     private fun clearServer(ip: String, port: Int) {
         scope.launch {
             try {

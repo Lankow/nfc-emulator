@@ -11,31 +11,65 @@ import androidx.compose.runtime.toMutableStateList
  * Central store for the currently selected scenario and its execution state.
  */
 object ScenarioManager {
+    /** Preference file storing serialized scenarios. */
     private const val PREFS = "scenario_prefs"
+
+    /** Preference key indicating the currently selected scenario name. */
     private const val CURRENT_KEY = "currentScenario"
+
+    /** Preference key for the serialized scenario collection. */
     private const val SCENARIO_KEY = "scenarios"
+
+    /** Logcat tag used when tracing scenario operations. */
     private const val TAG = "ScenarioManager"
 
+    /** APDU response bytes representing success (`0x9000`). */
     private val SUCCESS = byteArrayOf(0x90.toByte(), 0x00.toByte())
+
+    /** APDU response bytes representing `6A82` (file not found). */
     private val FILE_NOT_FOUND = byteArrayOf(0x6A.toByte(), 0x82.toByte())
 
+    /** Mutable flow tracking the currently selected scenario name. */
     private val _current = MutableStateFlow<String?>(null)
+
+    /** Public read-only view over [_current]. */
     val current = _current.asStateFlow()
 
+    /** Mutable flag describing whether the scenario is actively running. */
     private val _running = MutableStateFlow(false)
+
+    /** Read-only state representing the running flag. */
     val running = _running.asStateFlow()
 
+    /** Mutable state specifying if the scenario has been silenced. */
     private val _silenced = MutableStateFlow(false)
+
+    /** Public view of [_silenced] so UI layers can render toggles. */
     val silenced = _silenced.asStateFlow()
 
+    /** Mutable list of request/response [Step] definitions for the active scenario. */
     private val _steps = MutableStateFlow<List<Step>>(emptyList())
+
+    /** AID associated with the selected scenario. */
     private var scenarioAid: String = ""
+
+    /** The next AID that must be selected before scenario steps execute. */
     private var aidToSelect: String = ""
+
+    /** Whether the scenario should accept the SELECT command only once. */
     private var selectOnce: Boolean = false
 
+    /** Index pointer for the currently expected step. */
     private var stepIndex = 0
+
+    /** Tracks if the initial SELECT command has been observed. */
     private var isSelected = false
 
+    /**
+     * Loads persisted scenario selection and metadata from preferences.
+     *
+     * @param context Context used to access shared preferences.
+     */
     fun load(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val name = prefs.getString(CURRENT_KEY, null)
@@ -51,6 +85,12 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Sets the active scenario by name and updates dependent state.
+     *
+     * @param context Context used to read/write scenario preferences.
+     * @param name Scenario name or `null` to clear selection.
+     */
     fun setCurrent(context: Context, name: String?) {
         Log.d(TAG, "setCurrent: $name")
         _current.value = name
@@ -69,6 +109,11 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Starts or stops the currently selected scenario.
+     *
+     * @param running `true` to start execution, `false` to halt.
+     */
     fun setRunning(running: Boolean) {
         Log.d(TAG, "setRunning: $running")
         _running.value = running
@@ -98,6 +143,9 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Toggles whether scenario responses should be muted.
+     */
     fun toggleSilence() {
         _silenced.value = !_silenced.value
         val name = _current.value?.let { "Scenario '$it'" } ?: "Scenario"
@@ -110,6 +158,12 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Adds or updates the provided [scenario] within persistent storage.
+     *
+     * @param context Context used to access shared preferences.
+     * @param scenario Scenario definition to persist.
+     */
     fun addScenario(context: Context, scenario: Scenario) {
         if (scenario.name.isBlank()) return
         val uniqueSteps = scenario.steps
@@ -130,6 +184,12 @@ object ScenarioManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Removes the scenario identified by [name]. If it was active it is cleared.
+     *
+     * @param context Context used to update shared preferences.
+     * @param name Scenario name to remove.
+     */
     fun removeScenario(context: Context, name: String) {
         val scenarios = loadAllScenarios(context)
         scenarios.removeAll { it.name == name }
@@ -140,17 +200,31 @@ object ScenarioManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Removes all stored scenarios and clears the active selection.
+     *
+     * @param context Context used to clear shared preferences.
+     */
     fun clearScenarios(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit().remove(SCENARIO_KEY).apply()
         setCurrent(context, null)
     }
 
+    /**
+     * Resets transient selection state when the NFC link is deactivated.
+     */
     fun onDeactivated() {
         isSelected = false
         stepIndex = 0
     }
 
+    /**
+     * Processes the incoming [commandApdu] according to the running scenario.
+     *
+     * @param commandApdu Command from the reader.
+     * @return Response bytes or `null` when silenced/inactive.
+     */
     fun processApdu(commandApdu: ByteArray?): ByteArray? {
         if (commandApdu == null || _silenced.value || !_running.value || _current.value == null) return null
 
@@ -160,7 +234,7 @@ object ScenarioManager {
         if (!isSelected) {
             if (isSelectCommand(commandApdu) && extractAid(commandApdu).equals(aidToSelect, true)) {
                 isSelected = true
-                if (selectOnce) aidToSelect = ""
+                if (selectOnce) aidToSelect = "" // One-shot select means we should ignore further SELECTs.
                 return SUCCESS
             }
             return FILE_NOT_FOUND
@@ -182,12 +256,22 @@ object ScenarioManager {
         return SUCCESS
     }
 
+    /**
+     * Resets execution pointers and AID tracking for the next run.
+     */
     private fun resetState() {
         stepIndex = 0
         isSelected = false
         aidToSelect = scenarioAid
     }
 
+    /**
+     * Loads a single scenario by [name] from shared preferences.
+     *
+     * @param context Context used to access shared preferences.
+     * @param name Scenario identifier.
+     * @return Parsed [Scenario] or `null` if not found.
+     */
     private fun loadScenario(context: Context, name: String): Scenario? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: return null
@@ -209,6 +293,12 @@ object ScenarioManager {
         return Scenario(name, aid, selectOnce, steps)
     }
 
+    /**
+     * Loads all stored scenarios from shared preferences for bulk operations.
+     *
+     * @param context Context used to access shared preferences.
+     * @return Mutable list of stored scenarios.
+     */
     private fun loadAllScenarios(context: Context): MutableList<Scenario> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: emptySet()
@@ -233,6 +323,12 @@ object ScenarioManager {
         }.toMutableList()
     }
 
+    /**
+     * Persists the entire [scenarios] collection to shared preferences.
+     *
+     * @param context Context used to access shared preferences.
+     * @param scenarios Scenario list to store.
+     */
     private fun saveAllScenarios(context: Context, scenarios: List<Scenario>) {
         val serialized = scenarios.map { scenario ->
             val stepString = scenario.steps.joinToString(",") { step ->
@@ -244,6 +340,12 @@ object ScenarioManager {
         prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()
     }
 
+    /**
+     * Determines whether the APDU is a SELECT command targeting an AID.
+     *
+     * @param apdu Command bytes received from the reader.
+     * @return `true` when the command is a SELECT.
+     */
     private fun isSelectCommand(apdu: ByteArray): Boolean {
         return apdu.size >= 4 &&
             apdu[0] == 0x00.toByte() &&
@@ -251,6 +353,12 @@ object ScenarioManager {
             apdu[2] == 0x04.toByte()
     }
 
+    /**
+     * Extracts the AID from a SELECT APDU.
+     *
+     * @param apdu Command bytes received from the reader.
+     * @return Uppercase hex representation of the AID.
+     */
     private fun extractAid(apdu: ByteArray): String {
         if (apdu.size < 5) return ""
         val lc = apdu[4].toInt() and 0xFF
@@ -258,11 +366,18 @@ object ScenarioManager {
         return apdu.copyOfRange(5, 5 + lc).toHex()
     }
 
+    /**
+     * Converts a hex string into a byte array.
+     *
+     * @param hex Hex string to convert.
+     * @return Byte array decoded from the string.
+     */
     private fun hexToBytes(hex: String): ByteArray {
         val cleaned = hex.uppercase()
         val result = ByteArray(cleaned.length / 2)
         for (i in result.indices) {
             val index = i * 2
+            // Convert each pair of hex characters into a single byte value.
             val byte = cleaned.substring(index, index + 2).toInt(16)
             result[i] = byte.toByte()
         }
@@ -270,5 +385,11 @@ object ScenarioManager {
     }
 }
 
+/**
+ * Converts a byte array to an uppercase hex string.
+ *
+ * @receiver Byte array to convert.
+ * @return Uppercase hex string representation.
+ */
 private fun ByteArray.toHex(): String =
     joinToString("") { "%02X".format(it.toInt() and 0xFF) }

@@ -12,18 +12,42 @@ import java.net.Socket
 import java.net.SocketException
 import android.util.Log
 
+/**
+ * Hosts the optional on-device HTTP server used for automation. The manager is
+ * responsible for accepting socket connections, parsing minimal HTTP requests,
+ * and forwarding payloads to the JSON command handler.
+ */
 object InternalServerManager {
+    /** Coroutine scope hosting all long-running socket operations. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Tag used for Logcat statements. */
     private const val TAG = "InternalServer"
 
+    /**
+     * Human-readable state string surfaced to the UI. Examples: "Running",
+     * "Stopped", or an error description.
+     */
     var state by mutableStateOf("Stopped")
         private set
+
+    /** Indicates whether a stop/start transition is in progress. */
     var isProcessing by mutableStateOf(false)
         private set
 
+    /** Currently active [ServerSocket], or `null` when not running. */
     private var serverSocket: ServerSocket? = null
+
+    /** Active client sockets keyed by a readable host:port identifier. */
     private val clients = mutableMapOf<String, Socket>()
 
+    /**
+     * Launches the internal HTTP server listening on the provided [port]. The
+     * method is idempotent; calling it while a server is already running or
+     * shutting down is ignored.
+     *
+     * @param port Desired port. Passing `0` lets the OS assign an available port.
+     */
     fun start(port: Int) {
         if (serverSocket != null || isProcessing) return
         try {
@@ -32,6 +56,8 @@ object InternalServerManager {
             serverSocket = server
             state = "Running"
             CommunicationLog.add("STATE-INT: Server started on port ${server.localPort}.", true, true)
+            // Accept incoming sockets on a background coroutine so the UI thread
+            // remains responsive while automation clients connect.
             scope.launch {
                 try {
                     while (!server.isClosed) {
@@ -59,6 +85,13 @@ object InternalServerManager {
                                 }?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
 
                                 val output = socket.getOutputStream()
+                                /**
+                                 * Sends a small HTTP response with the provided [statusLine] and optional [body].
+                                 * Keeping this helper local prevents repeatedly rebuilding headers.
+                                 *
+                                 * @param statusLine HTTP status line (e.g. `HTTP/1.1 200 OK`).
+                                 * @param body Optional response body to include.
+                                 */
                                 fun writeResponse(statusLine: String, body: String = "") {
                                     val bodyBytes = body.toByteArray()
                                     val header = StringBuilder()
@@ -69,6 +102,7 @@ object InternalServerManager {
                                     try {
                                         output.write(header.toString().toByteArray())
                                         if (bodyBytes.isNotEmpty()) {
+                                            // HTTP requires the raw bytes to follow the headers.
                                             output.write(bodyBytes)
                                         }
                                         output.flush()
@@ -76,6 +110,7 @@ object InternalServerManager {
                                     }
                                 }
 
+                                // Dispatch the request based on the HTTP verb.
                                 when {
                                     method.equals("GET", true) -> {
                                         when {
@@ -107,6 +142,7 @@ object InternalServerManager {
                                         Log.d(TAG, "request: $body")
                                         if (body.isNotBlank()) {
                                             CommunicationLog.add("POST: $body", true, true)
+                                            // Delegate JSON command parsing to the dedicated handler.
                                             cleared = ServerJsonHandler.handle(body)
                                         }
                                         writeResponse("HTTP/1.1 200 OK", "OK")
@@ -146,6 +182,10 @@ object InternalServerManager {
         }
     }
 
+    /**
+     * Stops the internal server if it is running, closing all connected client
+     * sockets. The call is ignored while a stop operation is already in flight.
+     */
     fun stop() {
         if (serverSocket == null || isProcessing) return
         isProcessing = true

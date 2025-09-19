@@ -53,6 +53,7 @@ object CommunicationLog {
 
     /**
      * Appends a new log entry.
+     *
      * @param message Hex representation of APDU data.
      * @param isServer True if the message came from the server side.
      * @param isSuccess Optional flag indicating success or failure for colored logs.
@@ -76,6 +77,11 @@ object CommunicationLog {
         _entries.value = emptyList()
     }
 
+    /**
+     * Lazily initializes storage paths and limits from shared preferences.
+     *
+     * @param context Context used to resolve preference storage and file paths.
+     */
     fun init(context: Context) {
         if (initialized) return
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -91,6 +97,13 @@ object CommunicationLog {
         initialized = true
     }
 
+    /**
+     * Updates the stored log subdirectory if the supplied [rawPath] is valid.
+     *
+     * @param rawPath Desired relative directory.
+     * @param context Context used to access preferences.
+     * @return Sanitized path that was ultimately applied.
+     */
     fun setLogPath(rawPath: String, context: Context = AppContextHolder.context): String {
         ensureInitialized(context)
         val result = validatePath(rawPath)
@@ -104,6 +117,13 @@ object CommunicationLog {
         return result.sanitized
     }
 
+    /**
+     * Applies a new maximum log storage size.
+     *
+     * @param value Requested limit in megabytes.
+     * @param context Context used to persist the preference.
+     * @return Coerced limit between 0 and 100 MB.
+     */
     fun setMaxStorageMb(value: Int, context: Context = AppContextHolder.context): Int {
         ensureInitialized(context)
         val coerced = value.coerceIn(0, 100)
@@ -114,6 +134,13 @@ object CommunicationLog {
         return coerced
     }
 
+    /**
+     * Returns the root directory that should contain exported logs, creating it
+     * if necessary.
+     *
+     * @param context Context used to resolve external storage paths.
+     * @return Directory where log exports should be stored.
+     */
     fun getLogRootDirectory(context: Context = AppContextHolder.context): File {
         ensureInitialized(context)
         val base = context.getExternalFilesDir(LOGS_DIRECTORY)
@@ -124,6 +151,13 @@ object CommunicationLog {
         return base
     }
 
+    /**
+     * Resolves the final directory for log exports taking the configured path
+     * into account.
+     *
+     * @param context Context used to resolve storage paths.
+     * @return Directory that should hold exported logs.
+     */
     fun getResolvedLogDirectory(context: Context = AppContextHolder.context): File {
         ensureInitialized(context)
         val base = getLogRootDirectory(context)
@@ -139,6 +173,15 @@ object CommunicationLog {
         }
     }
 
+    /**
+     * Saves log [entries] to the configured directory, enforcing the storage
+     * limit before and after writing the file.
+     *
+     * @param scenario Optional scenario name used for naming the file.
+     * @param entries Log entries to persist.
+     * @param context Context used for file resolution.
+     * @return The file that was written.
+     */
     fun saveToConfiguredLocation(
         scenario: String?,
         entries: List<Entry> = buffer.toList(),
@@ -156,7 +199,11 @@ object CommunicationLog {
     }
 
     /**
-     * Writes provided [entries] (or all current entries) to the [file], each message separated by a newline.
+     * Writes provided [entries] (or all current entries) to the [file], each
+     * message separated by a newline.
+     *
+     * @param file Destination file that will be overwritten.
+     * @param entries Entries to serialize.
      */
     fun saveToFile(file: File, entries: List<Entry> = buffer.toList()) {
         Log.d(TAG, "saveToFile: ${file.path}")
@@ -172,6 +219,9 @@ object CommunicationLog {
 
     /**
      * Writes provided [entries] to the supplied [outputStream].
+     *
+     * @param outputStream Stream that receives the serialized log entries.
+     * @param entries Entries to serialize.
      */
     fun saveToStream(outputStream: OutputStream, entries: List<Entry> = buffer.toList()) {
         val text = entries.joinToString("\n") { it.message }
@@ -180,10 +230,22 @@ object CommunicationLog {
         }
     }
 
+    /**
+     * Convenience helper exposing [getResolvedLogDirectory] as a String path.
+     *
+     * @param context Context used to resolve the directory.
+     * @return Absolute path of the resolved log directory.
+     */
     fun getResolvedLogDirectoryPath(context: Context = AppContextHolder.context): String {
         return getResolvedLogDirectory(context).absolutePath
     }
 
+    /**
+     * Validates that a proposed [rawPath] contains only safe directory segments.
+     *
+     * @param rawPath Relative path to evaluate.
+     * @return [PathValidationResult] describing whether the path is acceptable.
+     */
     fun validatePath(rawPath: String): PathValidationResult {
         if (rawPath.isEmpty()) {
             return PathValidationResult("", true, null)
@@ -226,12 +288,24 @@ object CommunicationLog {
         )
     }
 
+    /**
+     * Ensures that the log subsystem was initialized before accessing state.
+     *
+     * @param context Context used to perform initialization when needed.
+     */
     private fun ensureInitialized(context: Context) {
         if (!initialized) {
             init(context)
         }
     }
 
+    /**
+     * Deletes the oldest `.log` files under [root] until the total size fits
+     * within [maxStorageMb].
+     *
+     * @param root Base directory containing log files.
+     * @param maxStorageMb Maximum allowed size in megabytes.
+     */
     private fun enforceStorageLimit(root: File, maxStorageMb: Int) {
         if (maxStorageMb <= 0) return
         val maxBytes = maxStorageMb * 1024L * 1024L
@@ -251,6 +325,12 @@ object CommunicationLog {
         }
     }
 
+    /**
+     * Builds a timestamped filename that incorporates the active [scenario].
+     *
+     * @param scenario Scenario name or `null` for the default prefix.
+     * @return Filename containing the scenario and timestamp.
+     */
     private fun buildFileName(scenario: String?): String {
         val formatter = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault())
         val scenarioName = (scenario ?: "log").replace(" ", "_")

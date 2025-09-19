@@ -4,12 +4,19 @@ import androidx.compose.runtime.toMutableStateList
 import org.json.JSONObject
 import android.util.Log
 
+/**
+ * Parses automation JSON payloads coming from both the external and internal
+ * HTTP servers. Each supported section delegates to a specific handler that
+ * updates the app's managers.
+ */
 object ServerJsonHandler {
     private const val TAG = "ServerJsonHandler"
 
     /**
      * Parses [jsonStr] and applies the contained commands.
-     * @return true if the communication log was cleared as part of the request.
+     *
+     * @param jsonStr JSON request body received from automation clients.
+     * @return `true` if the communication log was cleared as part of the request.
      */
     fun handle(jsonStr: String): Boolean {
         Log.d(TAG, "handle: $jsonStr")
@@ -42,6 +49,12 @@ object ServerJsonHandler {
         return cleared
     }
 
+    /**
+     * Applies AID-specific directives such as toggling enablement, adding, or
+     * removing entries.
+     *
+     * @param obj JSON object containing AID instructions.
+     */
     private fun handleAid(obj: JSONObject) {
         parseFlexibleBoolean(obj.opt("Enabled"))?.let { enabled ->
             Log.d(TAG, "handleAid: enabled=$enabled")
@@ -90,6 +103,11 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Updates communication filters according to the automation payload.
+     *
+     * @param obj JSON object describing filters to add, remove, or clear.
+     */
     private fun handleFilters(obj: JSONObject) {
         val context = AppContextHolder.context
         if (obj.optBoolean("Clear", false)) {
@@ -134,6 +152,13 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Processes communication directives such as clearing logs, toggling mute,
+     * and changing scenario execution state.
+     *
+     * @param obj JSON object describing communication operations.
+     * @return `true` when the log buffer was cleared.
+     */
     private fun handleComm(obj: JSONObject): Boolean {
         var cleared = false
         if (obj.optBoolean("Clear", false)) {
@@ -183,6 +208,13 @@ object ServerJsonHandler {
         return cleared
     }
 
+    /**
+     * Converts permissive JSON boolean representations (bool, number, or string)
+     * into a Kotlin Boolean where possible.
+     *
+     * @param value Raw JSON value to interpret.
+     * @return Parsed boolean, or `null` when the value is not a recognised flag.
+     */
     private fun parseFlexibleBoolean(value: Any?): Boolean? {
         return when (value) {
             null, JSONObject.NULL -> null
@@ -193,6 +225,11 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Applies logging preferences such as storage location and retention limits.
+     *
+     * @param obj JSON object containing `path`, `maxStorageMb`, or `save` fields.
+     */
     private fun handleLogSettings(obj: JSONObject) {
         val path = obj.optString("Path", obj.optString("path"))
         if (path.isNotBlank()) {
@@ -204,6 +241,11 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Handles flexible representations of a "Save" directive.
+     *
+     * @param request JSON token that might be a boolean, string path, or object.
+     */
     private fun handleSaveRequest(request: Any?) {
         when (request) {
             null, JSONObject.NULL -> return
@@ -216,6 +258,11 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Handles the object form of the save directive to customise path or limits.
+     *
+     * @param obj JSON object describing save behaviour.
+     */
     private fun handleSaveObject(obj: JSONObject) {
         val path = obj.optString("Path", obj.optString("path"))
         val hasPath = path.isNotBlank()
@@ -235,6 +282,11 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Validates and applies the requested log directory path.
+     *
+     * @param rawPath Path string provided by the automation client.
+     */
     private fun updateLogPath(rawPath: String) {
         val validation = CommunicationLog.validatePath(rawPath)
         if (!validation.isValid) {
@@ -252,6 +304,11 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Applies a new log retention ceiling.
+     *
+     * @param value Maximum storage size in megabytes.
+     */
     private fun updateMaxStorage(value: Int) {
         val previous = CommunicationLog.maxStorageMb.value
         val applied = CommunicationLog.setMaxStorageMb(value)
@@ -261,6 +318,12 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Extracts the storage-limit configuration from a JSON object.
+     *
+     * @param obj JSON object that may contain `maxStorageMb` fields.
+     * @return Coerced limit between 0 and 100, or `null` when not present.
+     */
     private fun extractMaxStorageMb(obj: JSONObject): Int? {
         val key = when {
             obj.has("MaxStorageMb") -> "MaxStorageMb"
@@ -276,6 +339,10 @@ object ServerJsonHandler {
         return value?.coerceIn(0, 100)
     }
 
+    /**
+     * Persists the current communication log using the configured options and
+     * reports success or errors back into the log for operators.
+     */
     private fun performLogSave() {
         try {
             val scenario = ScenarioManager.current.value
@@ -289,6 +356,11 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Applies scenario management commands (add/remove/select/clear).
+     *
+     * @param obj JSON object describing scenario operations.
+     */
     private fun handleScenarios(obj: JSONObject) {
         val context = AppContextHolder.context
         if (obj.optBoolean("Clear", false)) {
@@ -337,6 +409,9 @@ object ServerJsonHandler {
         }
     }
 
+    /**
+     * Executes a full reset by clearing scenarios, AIDs, filters, and logs.
+     */
     private fun handleReset() {
         val context = AppContextHolder.context
         ScenarioManager.setRunning(false)
@@ -351,6 +426,12 @@ object ServerJsonHandler {
         CommunicationLog.add("STATE-APP: Reset executed.", true, true)
     }
 
+    /**
+     * Builds a [Scenario] instance from the provided JSON object.
+     *
+     * @param obj JSON object that describes the scenario structure.
+     * @return Parsed [Scenario] or `null` if required fields were missing.
+     */
     private fun parseScenario(obj: JSONObject): Scenario? {
         val name = obj.optString("name")
         if (name.isBlank()) {

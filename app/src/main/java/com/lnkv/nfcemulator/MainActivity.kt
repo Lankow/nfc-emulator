@@ -129,12 +129,22 @@ class MainActivity : ComponentActivity() {
     private lateinit var prefs: SharedPreferences
     private val TAG = "MainActivity"
 
+    /**
+     * Bootstraps the emulator by wiring up NFC services, loading persisted
+     * state, and rendering the Compose UI tree.
+     *
+     * @param savedInstanceState Restored state provided by Android.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         Log.d(TAG, "onCreate")
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            /**
+             * Overrides the hardware back press so the emulator cannot be closed
+             * while emulation is active.
+             */
             override fun handleOnBackPressed() {
                 // Disable back button to keep the app in the foreground
             }
@@ -194,8 +204,19 @@ class MainActivity : ComponentActivity() {
 
 }
 
+/**
+ * Shared spinner implementation styled to match Material 3 for selecting enum
+ * or other list-based values.
+ *
+ * @param label Field label rendered above the spinner.
+ * @param options Values presented to the user.
+ * @param selected Currently selected entry.
+ * @param labelMapper Maps values to user-friendly strings.
+ * @param onSelected Callback invoked when a new value is chosen.
+ * @param modifier Modifier for layout adjustments.
+ * @param enabled When `false`, disables user interaction.
+ */
 @Composable
-
 fun <T> EnumSpinner(
     label: String,
     options: List<T>,
@@ -210,10 +231,19 @@ fun <T> EnumSpinner(
     val labels = options.map(labelMapper)
     var selectedIndex by remember { mutableStateOf(options.indexOf(selected)) }
 
+    /**
+     * Converts density-independent pixels to raw pixels for adapter styling.
+     *
+     * @param dp Density-independent pixels to convert.
+     * @return Raw pixel value based on display density.
+     */
     fun dpToPx(dp: Float): Int = (dp * context.resources.displayMetrics.density).toInt()
 
     val adapter = remember(labels, colors) {
         object : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, labels) {
+            /**
+             * Renders the spinner's collapsed view.
+             */
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val tv = super.getView(position, convertView, parent) as TextView
                 tv.setTextColor(colors.onSurface.toArgb())
@@ -221,6 +251,9 @@ fun <T> EnumSpinner(
                 return tv
             }
 
+            /**
+             * Renders each dropdown row, highlighting the currently selected item.
+             */
             override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val tv = super.getDropDownView(position, convertView, parent) as TextView
                 val isSelected = position == selectedIndex
@@ -269,12 +302,17 @@ fun <T> EnumSpinner(
                         setSelection(selectedIndex)
                         backgroundTintList = ColorStateList.valueOf(colors.primary.toArgb())
                         onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                            /**
+                             * Handles user selection updates, synchronising state and notifying
+                             * callers.
+                             */
                             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
                                 selectedIndex = position
                                 adapter.notifyDataSetChanged()
                                 onSelected(options[position])
                             }
 
+                            /** No-op to satisfy interface; the spinner always keeps a selection. */
                             override fun onNothingSelected(parent: AdapterView<*>) {}
                         }
                         val popupBg = GradientDrawable().apply {
@@ -300,6 +338,15 @@ fun <T> EnumSpinner(
     }
 }
 
+/**
+ * Dialog-like editor for creating or updating a scenario [Step].
+ *
+ * @param modifier Layout modifier for embedding the editor.
+ * @param step Step being edited; mutated copy is returned via [onSave].
+ * @param existingNames Names used by sibling steps to enforce uniqueness.
+ * @param onSave Callback when the user confirms changes.
+ * @param onCancel Callback when editing is cancelled.
+ */
 @Composable
 fun StepEditor(
     modifier: Modifier = Modifier,
@@ -402,6 +449,13 @@ data class Scenario(
 private const val SCENARIO_PREFS = "scenario_prefs"
 private const val SCENARIO_KEY = "scenarios"
 
+/**
+ * Persists the provided [scenarios] into shared preferences so they survive
+ * process restarts. Each step is serialized into a compact string form.
+ *
+ * @param context Context used to access shared preferences.
+ * @param scenarios Scenario list to store.
+ */
 private fun saveScenarios(context: Context, scenarios: List<Scenario>) {
     val serialized = scenarios.map { scenario ->
         val stepString = scenario.steps.joinToString(",") { step ->
@@ -417,6 +471,12 @@ private fun saveScenarios(context: Context, scenarios: List<Scenario>) {
     prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()
 }
 
+/**
+ * Restores scenarios from shared preferences into Compose state for editing.
+ *
+ * @param context Context used to read shared preferences.
+ * @return Mutable list of stored scenarios.
+ */
 private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
     val prefs = context.getSharedPreferences(SCENARIO_PREFS, Context.MODE_PRIVATE)
     val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet())!!
@@ -445,6 +505,13 @@ private fun loadScenarios(context: Context): SnapshotStateList<Scenario> {
     }.toMutableStateList()
 }
 
+/**
+ * Writes the provided [scenarios] into a JSON file referenced by [uri].
+ *
+ * @param context Context for resolving the content resolver.
+ * @param scenarios Scenario list to export.
+ * @param uri Destination document selected by the user.
+ */
 private fun exportScenarios(context: Context, scenarios: List<Scenario>, uri: Uri) {
     if (scenarios.isEmpty()) return
     val json = JSONArray().apply {
@@ -474,6 +541,13 @@ private fun exportScenarios(context: Context, scenarios: List<Scenario>, uri: Ur
     Toast.makeText(context, "Scenarios saved to file: $name", Toast.LENGTH_SHORT).show()
 }
 
+/**
+ * Reads scenarios from a JSON file and returns a deduplicated list.
+ *
+ * @param context Context for resolving the content resolver.
+ * @param uri Source document chosen by the user.
+ * @return Imported scenarios.
+ */
 private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
     val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return emptyList()
     val array = JSONArray(text)
@@ -501,6 +575,10 @@ private fun importScenarios(context: Context, uri: Uri): List<Scenario> {
     return scenarios
 }
 
+/**
+ * Root composable containing navigation and screen switching logic for the
+ * emulator.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
@@ -582,6 +660,17 @@ fun MainScreen() {
  * UI for monitoring APDU traffic. Two toggles control visibility of
  * server (incoming) and NFC (outgoing) streams while the logs expand to
  * fill available space when shown individually.
+ *
+ * @param entries Communication log entries to display.
+ * @param currentScenario Name of the selected scenario, if any.
+ * @param isRunning Indicates whether the scenario is currently running.
+ * @param isSilenced Whether responses are muted.
+ * @param isNfcEnabled NFC enablement flag for the toggle button.
+ * @param onToggleRun Invoked when the user taps Run/Stop.
+ * @param onClearScenario Invoked when the user clears the active scenario.
+ * @param onToggleSilence Invoked when the mute state toggles.
+ * @param onToggleNfc Invoked when the NFC toggle is pressed.
+ * @param modifier Layout modifier for the surrounding column.
  */
 @Composable
 fun CommunicationScreen(
@@ -792,6 +881,14 @@ fun CommunicationScreen(
     }
 }
 
+/**
+ * Scenario management surface that lets operators create, filter, import, and
+ * export scripted APDU flows.
+ *
+ * @param modifier Layout modifier passed from the hosting scaffold.
+ * @param onPlayScenario Callback invoked when the user plays a scenario so the
+ * communication screen can be shown.
+ */
 @Composable
 fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {}) {
     val context = LocalContext.current
@@ -1104,6 +1201,15 @@ fun ScenarioScreen(modifier: Modifier = Modifier, onPlayScenario: () -> Unit = {
     }
 }
 
+/**
+ * Full-screen scenario editor responsible for managing the name, AID, select
+ * behaviour, and ordered steps of a [Scenario].
+ *
+ * @param modifier Layout modifier applied to the editor.
+ * @param scenario Scenario being edited. Mutations are applied directly.
+ * @param onSave Callback triggered when the scenario is valid and persisted.
+ * @param onCancel Callback invoked when the user aborts editing.
+ */
 @Composable
 fun ScenarioEditor(
     modifier: Modifier = Modifier,
@@ -1296,16 +1402,27 @@ fun ScenarioEditor(
 private const val AID_PREFS = "nfc_aids"
 private const val AID_KEY = "aids"
 
+/**
+ * Validates that an AID contains only uppercase hex characters and is between
+ * 10 and 32 characters in length (inclusive) with an even character count.
+ */
 internal fun isValidAid(aid: String): Boolean {
     return aid.length in 10..32 && aid.length % 2 == 0 && aid.all { it in '0'..'9' || it in 'A'..'F' }
 }
 
+/**
+ * Loads persisted AIDs from shared preferences into Compose state.
+ */
 private fun loadAids(context: Context): SnapshotStateList<String> {
     val prefs = context.getSharedPreferences(AID_PREFS, Context.MODE_PRIVATE)
     val set = prefs.getStringSet(AID_KEY, setOf("F0010203040506")) ?: emptySet()
     return set.filter(::isValidAid).toMutableList().toMutableStateList()
 }
 
+/**
+ * Persists the provided [aids] while filtering invalid entries and registering
+ * them with [AidManager].
+ */
 private fun saveAids(context: Context, aids: List<String>) {
     val validAids = aids.filter(::isValidAid)
     if (validAids.size != aids.size) {
@@ -1314,6 +1431,13 @@ private fun saveAids(context: Context, aids: List<String>) {
     AidManager.replaceAll(validAids)
 }
 
+/**
+ * Saves the list of [aids] to the user-selected [uri] as a JSON array.
+ *
+ * @param context Context providing the content resolver.
+ * @param aids AIDs to export.
+ * @param uri Destination URI chosen by the user.
+ */
 private fun exportAids(context: Context, aids: List<String>, uri: Uri) {
     if (aids.isEmpty()) return
     context.contentResolver.openOutputStream(uri)?.use { os ->
@@ -1325,6 +1449,13 @@ private fun exportAids(context: Context, aids: List<String>, uri: Uri) {
     Toast.makeText(context, "AIDs saved to file: $name", Toast.LENGTH_SHORT).show()
 }
 
+/**
+ * Loads AIDs from the supplied [uri], filtering out invalid entries.
+ *
+ * @param context Context providing the content resolver.
+ * @param uri Source URI to read.
+ * @return List of valid AIDs contained in the file.
+ */
 private fun importAids(context: Context, uri: Uri): List<String> {
     val text = context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
         ?: return emptyList()
@@ -1337,6 +1468,13 @@ private fun importAids(context: Context, uri: Uri): List<String> {
     return list
 }
 
+/**
+ * Saves the active [filters] to the provided [uri] as a JSON array.
+ *
+ * @param context Context providing the content resolver.
+ * @param filters Filters to export.
+ * @param uri Destination URI chosen by the user.
+ */
 private fun exportFilters(context: Context, filters: List<String>, uri: Uri) {
     if (filters.isEmpty()) return
     context.contentResolver.openOutputStream(uri)?.use { os ->
@@ -1348,6 +1486,13 @@ private fun exportFilters(context: Context, filters: List<String>, uri: Uri) {
     Toast.makeText(context, "Filters saved to file: $name", Toast.LENGTH_SHORT).show()
 }
 
+/**
+ * Loads communication filters from [uri] and returns the validated collection.
+ *
+ * @param context Context providing the content resolver.
+ * @param uri Source URI containing filter definitions.
+ * @return Valid filters found in the document.
+ */
 private fun importFilters(context: Context, uri: Uri): List<String> {
     val text = context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
         ?: return emptyList()
@@ -1360,6 +1505,12 @@ private fun importFilters(context: Context, uri: Uri): List<String> {
     return list
 }
 
+/**
+ * Screen dedicated to managing the AID catalogue, including add/remove, import,
+ * and export operations.
+ *
+ * @param modifier Layout modifier used when composing within a scaffold.
+ */
 @Composable
 fun AidScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -1460,6 +1611,13 @@ fun AidScreen(modifier: Modifier = Modifier) {
 }
 
 
+/**
+ * Retrieves the device's current Wi-Fi IP address in dotted format when
+ * available.
+ *
+ * @param context Context used to access the [WifiManager].
+ * @return Local IP address or `null` if unavailable.
+ */
 private fun getLocalIpAddress(context: Context): String? {
     return try {
         val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -1473,6 +1631,12 @@ private fun getLocalIpAddress(context: Context): String? {
     }
 }
 
+/**
+ * Screen for configuring both external polling servers and the built-in
+ * internal HTTP server.
+ *
+ * @param modifier Layout modifier provided by the parent scaffold.
+ */
 @Composable
 fun ServerScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -1784,6 +1948,15 @@ fun ServerScreen(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Compact circular checkbox used in forms where Material's default checkbox
+ * feels too large.
+ *
+ * @param checked Current selection state.
+ * @param onCheckedChange Callback invoked when the user toggles the checkbox.
+ * @param enabled Controls interaction availability.
+ * @param modifier Layout modifier to apply.
+ */
 @Composable
 fun CircleCheckbox(
     checked: Boolean,
@@ -1819,7 +1992,12 @@ fun CircleCheckbox(
 }
 /**
  * Renders a labeled list of communication log [entries]. Each list item is
- * colored red for requests and green for responses.
+ * colored based on message semantics to highlight requests/responses.
+ *
+ * @param label Section title displayed above the list.
+ * @param entries Log entries to display.
+ * @param tag Test tag applied to the list container.
+ * @param modifier Layout modifier for sizing and placement.
  */
 @Composable
 private fun CommunicationLogList(
@@ -1860,6 +2038,13 @@ private fun CommunicationLogList(
     }
 }
 
+/**
+ * Secondary panel that allows adjusting log storage preferences and exporting
+ * the current session.
+ *
+ * @param entries Entries that can be exported from the panel.
+ * @param currentScenario Currently selected scenario name, if any.
+ */
 @Composable
 private fun LogsScreen(
     entries: List<CommunicationLog.Entry>,
@@ -2039,6 +2224,9 @@ private fun LogsScreen(
     }
 }
 
+/**
+ * Panel used to manage communication filters within the communication screen.
+ */
 @Composable
 private fun FilterScreen() {
     val context = LocalContext.current

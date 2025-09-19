@@ -21,6 +21,11 @@ import android.util.Log
 import kotlin.math.max
 import java.net.HttpURLConnection
 
+/**
+ * Handles the lifecycle of the external automation server connection including
+ * socket setup, polling loop management, and follow-up DELETE calls that clear
+ * processed commands.
+ */
 object ServerConnectionManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private const val TAG = "ServerConnMgr"
@@ -38,7 +43,9 @@ object ServerConnectionManager {
     private var lastVersion: Long = RequestStateTracker.version
 
     /**
-     * Post status updates to the connected external server when available.
+     * Posts status updates to the connected external server when available.
+     *
+     * @param status Human-readable status code (e.g. READY, RUNNING).
      */
     fun postStatus(status: String) {
         val ip = currentIp
@@ -62,6 +69,15 @@ object ServerConnectionManager {
         }
     }
 
+    /**
+     * Initiates a socket connection to the remote automation server and starts
+     * polling for commands at the given interval.
+     *
+     * @param context Source context used to resolve connectivity state.
+     * @param ip IPv4 address or hostname of the server.
+     * @param port TCP port on which the server listens.
+     * @param pollingMs Poll interval in milliseconds (minimum 1s enforced).
+     */
     fun connect(context: Context, ip: String, port: Int, pollingMs: Long) {
         if (isProcessing) return
         currentIp = ip
@@ -166,6 +182,10 @@ object ServerConnectionManager {
         }
     }
 
+    /**
+     * Tears down any existing connection to the external server and cancels the
+     * polling job so the app can return to a disconnected state.
+     */
     fun disconnect() {
         if (isProcessing) return
         val ip = currentIp
@@ -205,6 +225,13 @@ object ServerConnectionManager {
         }
     }
 
+    /**
+     * Issues an HTTP DELETE to the server so processed commands are cleared from
+     * its queue. The call is best-effort and errors are logged for operators.
+     *
+     * @param ip Target server address to clear.
+     * @param port Target server port to clear.
+     */
     private fun clearServer(ip: String, port: Int) {
         scope.launch {
             try {

@@ -7,6 +7,10 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * Maintains the set of registered Application Identifiers (AIDs) and syncs
+ * them with Android's [CardEmulation] subsystem.
+ */
 object AidManager {
     private const val PREFS_KEY = "aids"
     private const val ENABLED_KEY = "enabled"
@@ -23,9 +27,17 @@ object AidManager {
     private val _enabledState = MutableStateFlow(true)
     val enabledFlow = _enabledState.asStateFlow()
 
+    /** Indicates whether NFC emulation is currently enabled. */
     val isEnabled: Boolean
         get() = enabled
 
+    /**
+     * Initializes the manager with the core NFC APIs and stored preferences.
+     *
+     * @param cardEmulation [CardEmulation] instance used to register AIDs.
+     * @param componentName Component of [TypeAEmulatorService].
+     * @param prefs Shared preferences backing AID persistence.
+     */
     fun init(cardEmulation: CardEmulation, componentName: ComponentName, prefs: SharedPreferences) {
         Log.d(TAG, "init: component=$componentName")
         this.cardEmulation = cardEmulation
@@ -35,6 +47,12 @@ object AidManager {
         _enabledState.value = enabled
     }
 
+    /**
+     * Registers the provided [aids] with Android's card emulation service.
+     * Automatically clears registrations when emulation is disabled.
+     *
+     * @param aids List of AIDs to register.
+     */
     fun registerAids(aids: List<String>) {
         Log.d(TAG, "registerAids: $aids enabled=$enabled")
         if (!enabled) {
@@ -60,6 +78,11 @@ object AidManager {
         }
     }
 
+    /**
+     * Enables or disables NFC emulation and persists the choice.
+     *
+     * @param value `true` to enable, `false` to disable.
+     */
     fun setEnabled(value: Boolean) {
         if (enabled == value) return
         enabled = value
@@ -79,6 +102,11 @@ object AidManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Replaces the registered AIDs with the provided collection.
+     *
+     * @param aids New collection of AIDs to register and persist.
+     */
     fun replaceAll(aids: Collection<String>) {
         val set = aids.toSet()
         prefs.edit().putStringSet(PREFS_KEY, set).apply()
@@ -86,6 +114,11 @@ object AidManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Adds a single [aid] to the stored collection and updates registrations.
+     *
+     * @param aid AID value to add.
+     */
     fun add(aid: String) {
         Log.d(TAG, "add: $aid")
         val set = prefs.getStringSet(PREFS_KEY, emptySet())!!.toMutableSet()
@@ -95,6 +128,11 @@ object AidManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Removes an [aid] from the stored collection and updates registrations.
+     *
+     * @param aid AID value to remove.
+     */
     fun remove(aid: String) {
         Log.d(TAG, "remove: $aid")
         val set = prefs.getStringSet(PREFS_KEY, emptySet())!!.toMutableSet()
@@ -104,6 +142,9 @@ object AidManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Clears all stored AIDs and removes them from the card emulation service.
+     */
     fun clear() {
         Log.d(TAG, "clear")
         prefs.edit().putStringSet(PREFS_KEY, emptySet()).apply()

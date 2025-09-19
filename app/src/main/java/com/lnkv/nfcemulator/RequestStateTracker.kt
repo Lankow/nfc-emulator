@@ -8,11 +8,19 @@ package com.lnkv.nfcemulator
 object RequestStateTracker {
     private var _version: Long = 0
 
-    /** Current state version. Incremented whenever a relevant change occurs. */
+    /**
+     * Current state version. Incremented whenever a relevant change occurs.
+     *
+     * @return Monotonically increasing version counter representing the
+     * app-state snapshot.
+     */
     val version: Long
         get() = _version
 
-    /** Mark that app state has changed since the last processed request. */
+    /**
+     * Marks that app state has changed since the last processed request so the
+     * next poll can replay the previous response if required.
+     */
     fun markChanged() {
         _version++
     }

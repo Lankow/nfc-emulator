@@ -36,6 +36,11 @@ object ScenarioManager {
     private var stepIndex = 0
     private var isSelected = false
 
+    /**
+     * Loads persisted scenario selection and metadata from preferences.
+     *
+     * @param context Context used to access shared preferences.
+     */
     fun load(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val name = prefs.getString(CURRENT_KEY, null)
@@ -51,6 +56,12 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Sets the active scenario by name and updates dependent state.
+     *
+     * @param context Context used to read/write scenario preferences.
+     * @param name Scenario name or `null` to clear selection.
+     */
     fun setCurrent(context: Context, name: String?) {
         Log.d(TAG, "setCurrent: $name")
         _current.value = name
@@ -69,6 +80,11 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Starts or stops the currently selected scenario.
+     *
+     * @param running `true` to start execution, `false` to halt.
+     */
     fun setRunning(running: Boolean) {
         Log.d(TAG, "setRunning: $running")
         _running.value = running
@@ -98,6 +114,9 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Toggles whether scenario responses should be muted.
+     */
     fun toggleSilence() {
         _silenced.value = !_silenced.value
         val name = _current.value?.let { "Scenario '$it'" } ?: "Scenario"
@@ -110,6 +129,12 @@ object ScenarioManager {
         }
     }
 
+    /**
+     * Adds or updates the provided [scenario] within persistent storage.
+     *
+     * @param context Context used to access shared preferences.
+     * @param scenario Scenario definition to persist.
+     */
     fun addScenario(context: Context, scenario: Scenario) {
         if (scenario.name.isBlank()) return
         val uniqueSteps = scenario.steps
@@ -130,6 +155,12 @@ object ScenarioManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Removes the scenario identified by [name]. If it was active it is cleared.
+     *
+     * @param context Context used to update shared preferences.
+     * @param name Scenario name to remove.
+     */
     fun removeScenario(context: Context, name: String) {
         val scenarios = loadAllScenarios(context)
         scenarios.removeAll { it.name == name }
@@ -140,17 +171,31 @@ object ScenarioManager {
         RequestStateTracker.markChanged()
     }
 
+    /**
+     * Removes all stored scenarios and clears the active selection.
+     *
+     * @param context Context used to clear shared preferences.
+     */
     fun clearScenarios(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit().remove(SCENARIO_KEY).apply()
         setCurrent(context, null)
     }
 
+    /**
+     * Resets transient selection state when the NFC link is deactivated.
+     */
     fun onDeactivated() {
         isSelected = false
         stepIndex = 0
     }
 
+    /**
+     * Processes the incoming [commandApdu] according to the running scenario.
+     *
+     * @param commandApdu Command from the reader.
+     * @return Response bytes or `null` when silenced/inactive.
+     */
     fun processApdu(commandApdu: ByteArray?): ByteArray? {
         if (commandApdu == null || _silenced.value || !_running.value || _current.value == null) return null
 
@@ -182,12 +227,22 @@ object ScenarioManager {
         return SUCCESS
     }
 
+    /**
+     * Resets execution pointers and AID tracking for the next run.
+     */
     private fun resetState() {
         stepIndex = 0
         isSelected = false
         aidToSelect = scenarioAid
     }
 
+    /**
+     * Loads a single scenario by [name] from shared preferences.
+     *
+     * @param context Context used to access shared preferences.
+     * @param name Scenario identifier.
+     * @return Parsed [Scenario] or `null` if not found.
+     */
     private fun loadScenario(context: Context, name: String): Scenario? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: return null
@@ -209,6 +264,12 @@ object ScenarioManager {
         return Scenario(name, aid, selectOnce, steps)
     }
 
+    /**
+     * Loads all stored scenarios from shared preferences for bulk operations.
+     *
+     * @param context Context used to access shared preferences.
+     * @return Mutable list of stored scenarios.
+     */
     private fun loadAllScenarios(context: Context): MutableList<Scenario> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val serialized = prefs.getStringSet(SCENARIO_KEY, emptySet()) ?: emptySet()
@@ -233,6 +294,12 @@ object ScenarioManager {
         }.toMutableList()
     }
 
+    /**
+     * Persists the entire [scenarios] collection to shared preferences.
+     *
+     * @param context Context used to access shared preferences.
+     * @param scenarios Scenario list to store.
+     */
     private fun saveAllScenarios(context: Context, scenarios: List<Scenario>) {
         val serialized = scenarios.map { scenario ->
             val stepString = scenario.steps.joinToString(",") { step ->
@@ -244,6 +311,12 @@ object ScenarioManager {
         prefs.edit().putStringSet(SCENARIO_KEY, serialized).apply()
     }
 
+    /**
+     * Determines whether the APDU is a SELECT command targeting an AID.
+     *
+     * @param apdu Command bytes received from the reader.
+     * @return `true` when the command is a SELECT.
+     */
     private fun isSelectCommand(apdu: ByteArray): Boolean {
         return apdu.size >= 4 &&
             apdu[0] == 0x00.toByte() &&
@@ -251,6 +324,12 @@ object ScenarioManager {
             apdu[2] == 0x04.toByte()
     }
 
+    /**
+     * Extracts the AID from a SELECT APDU.
+     *
+     * @param apdu Command bytes received from the reader.
+     * @return Uppercase hex representation of the AID.
+     */
     private fun extractAid(apdu: ByteArray): String {
         if (apdu.size < 5) return ""
         val lc = apdu[4].toInt() and 0xFF
@@ -258,6 +337,12 @@ object ScenarioManager {
         return apdu.copyOfRange(5, 5 + lc).toHex()
     }
 
+    /**
+     * Converts a hex string into a byte array.
+     *
+     * @param hex Hex string to convert.
+     * @return Byte array decoded from the string.
+     */
     private fun hexToBytes(hex: String): ByteArray {
         val cleaned = hex.uppercase()
         val result = ByteArray(cleaned.length / 2)
@@ -270,5 +355,11 @@ object ScenarioManager {
     }
 }
 
+/**
+ * Converts a byte array to an uppercase hex string.
+ *
+ * @receiver Byte array to convert.
+ * @return Uppercase hex string representation.
+ */
 private fun ByteArray.toHex(): String =
     joinToString("") { "%02X".format(it.toInt() and 0xFF) }

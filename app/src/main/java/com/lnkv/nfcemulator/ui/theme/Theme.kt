@@ -33,6 +33,15 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+/**
+ * Applies the Material 3 color/typography configuration used across the app.
+ * Wrapper around [MaterialTheme] that automatically picks dynamic colors on
+ * Android 12+ when enabled.
+ *
+ * @param darkTheme Force dark mode when `true`; defaults to system preference.
+ * @param dynamicColor Enable Monet dynamic colors on supported devices.
+ * @param content Composable content rendered inside the themed surface.
+ */
 @Composable
 fun NFCEmulatorTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

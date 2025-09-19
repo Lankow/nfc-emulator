@@ -12,6 +12,10 @@ import com.lnkv.nfcemulator.ScenarioManager
  */
 class TypeAEmulatorService : HostApduService() {
 
+    /**
+     * Called once the service is created by Android; logs activation for audit
+     * visibility.
+     */
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate")
@@ -21,6 +25,10 @@ class TypeAEmulatorService : HostApduService() {
     /**
      * Processes a command APDU from the external NFC reader using the
      * active scenario and settings.
+     *
+     * @param commandApdu Incoming APDU request bytes.
+     * @param extras Optional extras supplied by Android.
+     * @return Response APDU bytes produced by the current scenario.
      */
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray? {
         val response = ScenarioManager.processApdu(commandApdu)
@@ -37,6 +45,11 @@ class TypeAEmulatorService : HostApduService() {
         return response
     }
 
+    /**
+     * Invoked when the NFC link is deactivated; updates logs and scenario state.
+     *
+     * @param reason Android-defined reason for deactivation.
+     */
     override fun onDeactivated(reason: Int) {
         Log.d(TAG, "Deactivated: $reason")
         CommunicationLog.add("STATE-NFC: Deactivated ($reason).", true, false)
@@ -50,6 +63,9 @@ class TypeAEmulatorService : HostApduService() {
 
 /**
  * Helper extension to convert a byte array to a hexadecimal string for logging.
+ *
+ * @receiver Byte array to format.
+ * @return Upper-case hex string.
  */
 private fun ByteArray.toHex(): String =
     joinToString("") { "%02X".format(it.toInt() and 0xFF) }

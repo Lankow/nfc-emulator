@@ -12,6 +12,11 @@ import java.net.Socket
 import java.net.SocketException
 import android.util.Log
 
+/**
+ * Hosts the optional on-device HTTP server used for automation. The manager is
+ * responsible for accepting socket connections, parsing minimal HTTP requests,
+ * and forwarding payloads to the JSON command handler.
+ */
 object InternalServerManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private const val TAG = "InternalServer"
@@ -24,6 +29,13 @@ object InternalServerManager {
     private var serverSocket: ServerSocket? = null
     private val clients = mutableMapOf<String, Socket>()
 
+    /**
+     * Launches the internal HTTP server listening on the provided [port]. The
+     * method is idempotent; calling it while a server is already running or
+     * shutting down is ignored.
+     *
+     * @param port Desired port. Passing `0` lets the OS assign an available port.
+     */
     fun start(port: Int) {
         if (serverSocket != null || isProcessing) return
         try {
@@ -59,6 +71,13 @@ object InternalServerManager {
                                 }?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
 
                                 val output = socket.getOutputStream()
+                                /**
+                                 * Sends a small HTTP response with the provided [statusLine] and optional [body].
+                                 * Keeping this helper local prevents repeatedly rebuilding headers.
+                                 *
+                                 * @param statusLine HTTP status line (e.g. `HTTP/1.1 200 OK`).
+                                 * @param body Optional response body to include.
+                                 */
                                 fun writeResponse(statusLine: String, body: String = "") {
                                     val bodyBytes = body.toByteArray()
                                     val header = StringBuilder()
@@ -76,6 +95,7 @@ object InternalServerManager {
                                     }
                                 }
 
+                                // Dispatch the request based on the HTTP verb.
                                 when {
                                     method.equals("GET", true) -> {
                                         when {
@@ -146,6 +166,10 @@ object InternalServerManager {
         }
     }
 
+    /**
+     * Stops the internal server if it is running, closing all connected client
+     * sockets. The call is ignored while a stop operation is already in flight.
+     */
     fun stop() {
         if (serverSocket == null || isProcessing) return
         isProcessing = true
